@@ -56,14 +56,19 @@ final class NotchWindowController {
         let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens[0]
         screenFrame = screen.frame
 
-        if screen.safeAreaInsets.top > 0,
+        // `defaults write dev.notchisland.app simulateNoNotch -bool true` previews the notch-less layout.
+        let simulateNoNotch = UserDefaults.standard.bool(forKey: "simulateNoNotch")
+        if !simulateNoNotch, screen.safeAreaInsets.top > 0,
            let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            vm.hasNotch = true
             vm.notchSize = CGSize(width: screen.frame.width - left.width - right.width,
                                   height: screen.safeAreaInsets.top)
         } else {
-            // No notch (external display): draw a fake one the height of the menu bar.
+            // No notch (M1 Air/13" Pro, iMac, external display): the island is invisible until it has
+            // something to show, then appears as a slim pill inside the menu bar.
+            vm.hasNotch = false
             let menuBar = max(screen.frame.maxY - screen.visibleFrame.maxY, 24)
-            vm.notchSize = CGSize(width: 190, height: menuBar)
+            vm.notchSize = CGSize(width: 36, height: min(menuBar, 32))
         }
 
         panel.setFrame(CGRect(x: screenFrame.midX - canvas.width / 2, y: screenFrame.maxY - canvas.height,
@@ -103,7 +108,9 @@ final class NotchWindowController {
         }
 
         // Only capture the mouse over the island; everywhere else clicks pass through to the menu bar.
-        if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
+        // While hidden (no notch, idle) never capture it, so menu-bar clicks still work.
+        let capture = inside && !vm.isHiddenIdle
+        if panel.ignoresMouseEvents == capture { panel.ignoresMouseEvents = !capture }
         vm.setHovering(inside)
 
         // Mouse-moved events don't always reach an inactive app, so poll while the island is engaged.

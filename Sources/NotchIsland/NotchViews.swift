@@ -57,6 +57,7 @@ struct NotchRootView: View {
         .clipShape(shape)
         .contentShape(shape)
         .shadow(color: .black.opacity(raised ? 0.5 : 0), radius: 16, y: 6)
+        .opacity(vm.isHiddenIdle ? 0 : 1)
         .offset(x: vm.bodyOffsetX)
         .onTapGesture { vm.handleTap() }
         .onDrop(of: [.fileURL], isTargeted: Binding(get: { vm.isDropTargeted }, set: { vm.dropTargetChanged($0) })) {
@@ -88,7 +89,15 @@ struct SettingsMenuItems: View {
         }
         Toggle("Replace System Volume & Brightness HUD", isOn: Binding(get: { vm.replaceSystemHUD },
                                                                        set: { vm.setReplaceSystemHUD($0) }))
-        Toggle("Show Logo When Idle", isOn: Binding(get: { vm.showIdleBadge }, set: { vm.setShowIdleBadge($0) }))
+        if vm.replaceSystemHUD && !vm.keyTapActive {
+            Button("⚠︎ Allow Accessibility to Hide Apple’s HUD…") { vm.openAccessibilitySettings() }
+        }
+        if vm.hasNotch {
+            Toggle("Show Logo When Idle", isOn: Binding(get: { vm.showIdleBadge }, set: { vm.setShowIdleBadge($0) }))
+        } else {
+            Toggle("Show Music & Timer in Menu Bar", isOn: Binding(get: { vm.showMenuBarActivities },
+                                                                   set: { vm.setShowMenuBarActivities($0) }))
+        }
         Toggle("Launch at Login", isOn: Binding(get: { vm.launchAtLogin }, set: { _ in vm.toggleLaunchAtLogin() }))
         Divider()
         Button("Add Google / Other Calendar Account…") { vm.calendar.openInternetAccounts() }
@@ -110,7 +119,7 @@ struct CollapsedView: View {
         VStack(spacing: 0) {
             if vm.activity == .none {
                 HStack(spacing: 0) {
-                    if vm.showIdleBadge {
+                    if vm.showIdleBadge && vm.hasNotch {
                         NotchLogo(size: 15).frame(width: vm.idleBadgeWidth)
                     }
                     Spacer(minLength: 0)

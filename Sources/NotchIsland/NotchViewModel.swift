@@ -47,6 +47,11 @@ final class NotchViewModel: ObservableObject {
     @Published private(set) var isDropTargeted = false
     @Published private(set) var replaceSystemHUD = UserDefaults.standard.bool(forKey: "replaceSystemHUD")
     @Published private(set) var showIdleBadge = UserDefaults.standard.object(forKey: "showIdleBadge") as? Bool ?? true
+    /// False on Macs/displays without a camera notch: the island then hides until it has something to show.
+    @Published var hasNotch = true
+    @Published private(set) var showMenuBarActivities = UserDefaults.standard.object(forKey: "showMenuBarActivities") as? Bool ?? true
+    /// Whether volume/brightness keys are currently being intercepted (false if Accessibility is missing).
+    @Published private(set) var keyTapActive = false
 
     let music = MusicController()
     let battery = BatteryMonitor()
@@ -110,6 +115,8 @@ final class NotchViewModel: ObservableObject {
         case .timerDone: return .timerDone
         case nil: break
         }
+        // Without a notch, persistent activities sit in the menu bar; the user can turn that off.
+        if !hasNotch && !showMenuBarActivities { return .none }
         if timer.isActive { return .timer }
         if music.isPlaying && music.hasTrack { return .music }
         if let e = calendar.nextEvent {
@@ -124,7 +131,9 @@ final class NotchViewModel: ObservableObject {
 
     /// Small always-visible box to the left of the notch, so there's something to aim for when idle.
     var idleBadgeWidth: CGFloat { notchSize.height + 8 }
-    private var showsIdleBadge: Bool { !isExpanded && showIdleBadge && activity == .none }
+    private var showsIdleBadge: Bool { hasNotch && !isExpanded && showIdleBadge && activity == .none }
+    /// No notch and nothing to show: draw nothing at all, so no screen space is used.
+    var isHiddenIdle: Bool { !hasNotch && !isExpanded && activity == .none }
     /// Shifts the island left when only the left-hand idle badge is showing.
     var bodyOffsetX: CGFloat { showsIdleBadge ? -idleBadgeWidth / 2 : 0 }
 
@@ -132,13 +141,15 @@ final class NotchViewModel: ObservableObject {
         let n = notchSize
         let wide = n.width + 2 * sideWidth
         switch activity {
-        case .none: return showIdleBadge ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n
-        case .hud: return CGSize(width: wide, height: n.height + 26)
+        case .none: return showsIdleBadgeSpace ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n
+        case .hud: return CGSize(width: hasNotch ? wide : max(wide, 240), height: n.height + 26)
         case .notification: return CGSize(width: max(wide, 420), height: n.height + 62)
         case .timerDone: return CGSize(width: max(wide, 360), height: n.height + 44)
         default: return CGSize(width: wide, height: n.height)
         }
     }
+
+    private var showsIdleBadgeSpace: Bool { hasNotch && showIdleBadge }
 
     var bodySize: CGSize { isExpanded ? expandedSize : collapsedSize }
     var topRadius: CGFloat { isExpanded ? 14 : 6 }
@@ -155,6 +166,10 @@ final class NotchViewModel: ObservableObject {
 
     /// The area (in global screen coordinates) that should receive the mouse.
     func interactiveRect(screenFrame: CGRect) -> CGRect {
+        if isHiddenIdle {
+            // Hidden: a strip along the top edge, so pushing the cursor to the top center opens the island.
+            return CGRect(x: screenFrame.midX - 140, y: screenFrame.maxY - 3, width: 280, height: 7)
+        }
         let s = shapeSize
         let w = s.width + (isExpanded ? 0 : 24)
         let h = s.height + (isExpanded ? 10 : 8)
@@ -184,7 +199,9 @@ final class NotchViewModel: ObservableObject {
             }
         }
         hoverWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (hovering ? 0.12 : 0.3), execute: work)
+        // When hidden on a notch-less screen, wait a bit longer so quick trips to the menu bar don't open it.
+        let delay = hovering ? (isHiddenIdle ? 0.3 : 0.12) : 0.3
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     func expand() {
@@ -290,6 +307,7 @@ final class NotchViewModel: ObservableObject {
             trustTimer?.invalidate()
             trustTimer = nil
             keyTap.stop()
+            keyTapActive = false
         }
     }
 
@@ -298,13 +316,33 @@ final class NotchViewModel: ObservableObject {
     private func enableKeyTap() {
         trustTimer?.invalidate()
         trustTimer = nil
-        if keyTap.start() { return }
-        MediaKeyTap.requestTrust()
-        var attempts = 0
-        trustTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
-            attempts += 1
-            if self?.keyTap.start() == true || attempts > 150 { t.invalidate() }
+        if keyTap.start() {
+            keyTapActive = true
+            Self.log.info("media key tap started")
+            return
         }
+        keyTapActive = false
+        Self.log.info("media key tap waiting for Accessibility permission")
+        MediaKeyTap.requestTrust()
+        trustTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
+            guard let self, self.keyTap.start() else { return }
+            t.invalidate()
+            self.keyTapActive = true
+            Self.log.info("media key tap started")
+        }
+    }
+
+    /// Opens System Settings → Privacy & Security → Accessibility.
+    func openAccessibilitySettings() {
+        MediaKeyTap.requestTrust()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func setShowMenuBarActivities(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "showMenuBarActivities")
+        withAnimation(Self.spring) { showMenuBarActivities = on }
     }
 
     func setShowIdleBadge(_ on: Bool) {

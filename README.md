@@ -21,7 +21,7 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 
 ## Download (no Terminal needed)
 
-Works on any Mac with Apple silicon (M1 or newer) running macOS 14 Sonoma or later.
+Works on any Mac with Apple silicon (M1 or newer) running macOS 14 Sonoma or later, with or without a notch.
 
 1. **[Download Notch-Island.dmg](https://github.com/rishidil/notch-island/releases/latest/download/Notch-Island.dmg)**
 2. Open the downloaded file and drag **Notch Island** onto the **Applications** folder
@@ -30,7 +30,8 @@ Works on any Mac with Apple silicon (M1 or newer) running macOS 14 Sonoma or lat
 4. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to *"Notch Island was blocked"*.
    Confirm with your password or Touch ID
 
-That's it. The island now lives in your notch. Hover over it to open it. You only do step 4 once.
+That's it. The island now lives in your notch. Hover over it to open it (no notch? push the cursor to the top center
+of the screen). You only do step 4 once.
 
 To quit or change settings, right-click the island or use the ⚙︎ in the expanded view.
 Turn on **Launch at Login** there so it starts with your Mac.
@@ -119,5 +120,7 @@ After the first build signed this way, grant permissions one last time; they'll 
 - **Music:** only Spotify and Apple Music. macOS 15.4+ blocks third-party apps from the system-wide Now Playing API,
   so browser audio (YouTube etc.) can't be shown.
 - **Private APIs:** brightness and notification previews use private macOS APIs, which could break in a future macOS update.
-- **External displays:** shows a small black pill in place of the notch.
+- **Macs without a notch** (M1 Air, 13" Pro, iMac, external displays): the island stays invisible until something
+  happens (music, timer, volume…), then appears as a slim pill in the menu bar. Push the cursor to the top center of
+  the screen to open it. Turn off *Show Music & Timer in Menu Bar* in ⚙︎ to show only pop-ups.
 - **Privacy:** notification content never leaves your Mac.
