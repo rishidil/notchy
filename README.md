@@ -19,7 +19,23 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 | 🚀 **App shelf** | Your favorite apps one click away (`+` to add, right-click to remove) |
 | 🔋 **Battery** | Charging animation when you plug in, battery level in the header |
 
-## Install
+## Download (no Terminal needed)
+
+Works on any Mac with Apple silicon (M1 or newer) running macOS 14 Sonoma or later.
+
+1. **[Download Notch-Island.dmg](https://github.com/rishidil/notch-island/releases/latest/download/Notch-Island.dmg)**
+2. Open the downloaded file and drag **Notch Island** onto the **Applications** folder
+3. Open **Applications** and double-click **Notch Island**. macOS will say it *"could not verify"* the app; click **Done**
+   (this happens because the app isn't sold through Apple, not because anything is wrong)
+4. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to *"Notch Island was blocked"*.
+   Confirm with your password or Touch ID
+
+That's it. The island now lives in your notch. Hover over it to open it. You only do step 4 once.
+
+To quit or change settings, right-click the island or use the ⚙︎ in the expanded view.
+Turn on **Launch at Login** there so it starts with your Mac.
+
+## Build from source
 
 Requires an Apple Silicon Mac with macOS 14+ and the Xcode Command Line Tools (`xcode-select --install`).
 
@@ -29,9 +45,8 @@ cd notch-island
 ./build.sh install     # builds, copies to /Applications and launches
 ```
 
-Other commands: `./build.sh` (just build into `build/`) and `./build.sh run` (build + relaunch from `build/`).
+Other commands: `./build.sh` (just build into `build/`), `./build.sh run` (build + relaunch from `build/`) and `./build.sh dmg` (make the installer disk image).
 
-To quit or change settings, right-click the island or use the ⚙︎ in the expanded view.
 
 ## Permissions
 

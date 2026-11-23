@@ -2,6 +2,7 @@
 # Usage: ./build.sh          build build/NotchIsland.app
 #        ./build.sh run      build and (re)launch
 #        ./build.sh install  build, copy to /Applications and launch
+#        ./build.sh dmg      build build/Notch-Island.dmg (drag-to-Applications installer)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -12,6 +13,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/NotchIsland "$APP/Contents/MacOS/NotchIsland"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Use a stable self-signed identity if present so macOS keeps permissions across rebuilds
 # (see README → "Keep permissions across rebuilds"); otherwise sign ad-hoc.
 IDENTITY="Notch Island Dev"
@@ -37,5 +39,15 @@ case "${1:-}" in
     cp -R "$APP" "/Applications/Notch Island.app"
     open "/Applications/Notch Island.app"
     echo "Installed to /Applications"
+    ;;
+  dmg)
+    DMG="build/Notch-Island.dmg"
+    STAGE="$(mktemp -d)"
+    cp -R "$APP" "$STAGE/"
+    ln -s /Applications "$STAGE/Applications"
+    rm -f "$DMG"
+    hdiutil create -volname "Notch Island" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+    rm -rf "$STAGE"
+    echo "Built $DMG"
     ;;
 esac
