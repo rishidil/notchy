@@ -125,13 +125,28 @@ final class BrightnessController: ObservableObject {
         return getFn(displayID, &b) == 0 ? b : nil
     }
 
+    private var history: [Float] = []
+
     private func poll() {
         guard let b = read() else { resolveDisplay(); return }
-        let delta = abs(b - level)
-        guard delta > 0.0005 else { return }
+        history.append(b)
+        if history.count > 4 { history.removeFirst() }
+        guard abs(b - level) > 0.0005 else { return }
         level = b
-        // Brightness keys move in ~6% steps; ignore slow auto-brightness drift.
-        if delta >= 0.03 { onChange?() }
+        // Brightness keys move ~6% per press (animated over a few hundred ms). Compare against the
+        // reading ~0.75s ago so key presses register but slow auto-brightness drift doesn't.
+        if let old = history.first, abs(b - old) >= 0.025 {
+            history = [b]
+            onChange?()
+        }
+    }
+
+    func set(_ value: Float) {
+        guard let setFn else { return }
+        let v = min(max(value, 0), 1)
+        _ = setFn(displayID, v)
+        level = v
+        history = [v]
     }
 
     func step(up: Bool, fine: Bool) {
@@ -141,6 +156,7 @@ final class BrightnessController: ObservableObject {
         let target = min(max(((current / s).rounded() + (up ? 1 : -1)) * s, 0), 1)
         _ = setFn(displayID, target)
         level = target
+        history = [target]
     }
 }
 

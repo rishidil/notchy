@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 import ServiceManagement
 import SwiftUI
 
@@ -59,6 +60,7 @@ final class NotchViewModel: ObservableObject {
     private let keyTap = MediaKeyTap()
 
     static let spring = Animation.spring(response: 0.42, dampingFraction: 0.8)
+    static let log = Logger(subsystem: "dev.notchisland.app", category: "island")
 
     private var bag = Set<AnyCancellable>()
     private var observers: [NSObjectProtocol] = []
@@ -204,6 +206,7 @@ final class NotchViewModel: ObservableObject {
     // MARK: Transients
 
     func show(_ t: Transient, for seconds: Double) {
+        Self.log.info("show transient: \(String(describing: t), privacy: .private)")
         withAnimation(Self.spring) { transient = t }
         scheduleTransientDismiss(after: seconds)
     }

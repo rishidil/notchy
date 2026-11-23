@@ -101,7 +101,11 @@ struct HomeTab: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            NowPlayingCard(music: vm.music).frame(width: 268)
+            VStack(alignment: .leading, spacing: 12) {
+                NowPlayingCard(music: vm.music)
+                LevelSliders(volume: vm.volume, brightness: vm.brightness)
+            }
+            .frame(width: 268)
             Rectangle().fill(.white.opacity(0.08)).frame(width: 1, height: 132)
             VStack(alignment: .leading, spacing: 10) {
                 NextEventRow(calendar: vm.calendar)
@@ -109,6 +113,46 @@ struct HomeTab: View {
                 AppShelfRow(shelf: vm.shelf)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct LevelSliders: View {
+    @ObservedObject var volume: VolumeController
+    @ObservedObject var brightness: BrightnessController
+
+    var body: some View {
+        HStack(spacing: 14) {
+            MiniSlider(symbol: volume.muted || volume.volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                       value: volume.muted ? 0 : Double(volume.volume)) { volume.setVolume(Float($0)) }
+                .help("Volume")
+            MiniSlider(symbol: "sun.max.fill", value: Double(brightness.level)) { brightness.set(Float($0)) }
+                .help("Brightness")
+        }
+    }
+}
+
+struct MiniSlider: View {
+    let symbol: String
+    let value: Double
+    let onChange: (Double) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 16)
+            GeometryReader { geo in
+                LevelBar(level: value)
+                    .frame(height: 6)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                        onChange(min(max(g.location.x / geo.size.width, 0), 1))
+                    })
+            }
+            .frame(height: 18)
         }
     }
 }
