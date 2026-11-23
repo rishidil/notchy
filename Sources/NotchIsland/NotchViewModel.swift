@@ -193,6 +193,7 @@ final class NotchViewModel: ObservableObject {
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         music.refresh()
         calendar.refresh()
+        toggles.refreshKeepAwake()
     }
 
     func collapse() {

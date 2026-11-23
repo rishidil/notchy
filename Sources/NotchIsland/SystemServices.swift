@@ -195,13 +195,65 @@ final class SystemToggles: ObservableObject {
     @Published private(set) var darkMode = false
     @Published private(set) var keepAwake = false
     private var assertionID: IOPMAssertionID = 0
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
+    private var keepAwakeTimer: Timer?
+
+    private static let amphetamineID = "com.if.Amphetamine"
+    /// Keep Awake drives Amphetamine when it's installed, otherwise a built-in power assertion.
+    var usesAmphetamine: Bool { NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.amphetamineID) != nil }
+    private var amphetamineRunning: Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: Self.amphetamineID).isEmpty
+    }
 
     init() {
         readDarkMode()
-        observer = DistributedNotificationCenter.default().addObserver(
+        observers.append(DistributedNotificationCenter.default().addObserver(
             forName: .init("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
-        ) { [weak self] _ in self?.readDarkMode() }
+        ) { [weak self] _ in self?.readDarkMode() })
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] n in
+            let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            if app?.bundleIdentifier == Self.amphetamineID { self?.keepAwake = false }
+        })
+        // Pick up sessions started/ended from Amphetamine's own menu.
+        keepAwakeTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            self?.refreshKeepAwake()
+        }
+        refreshKeepAwake()
+    }
+
+    func refreshKeepAwake() {
+        guard usesAmphetamine, amphetamineRunning else { return }
+        AppleScript.run("tell application id \"\(Self.amphetamineID)\" to session is active") { [weak self] d in
+            guard let self, let d else { return }
+            if self.keepAwake != d.booleanValue { self.keepAwake = d.booleanValue }
+        }
+    }
+
+    /// Starts a keep-awake session. `minutes == nil` uses Amphetamine's default duration; 0 means indefinitely.
+    func startKeepAwake(minutes: Int? = nil) {
+        guard usesAmphetamine else {
+            if !keepAwake { toggleBuiltInKeepAwake() }
+            return
+        }
+        keepAwake = true
+        let options = minutes.map { " with options {duration:\($0), interval:minutes, displaySleepAllowed:false}" } ?? ""
+        AppleScript.run("tell application id \"\(Self.amphetamineID)\" to start new session\(options)") { [weak self] _ in
+            self?.refreshKeepAwake()
+        }
+    }
+
+    func stopKeepAwake() {
+        guard usesAmphetamine else {
+            if keepAwake { toggleBuiltInKeepAwake() }
+            return
+        }
+        keepAwake = false
+        guard amphetamineRunning else { return }
+        AppleScript.run("tell application id \"\(Self.amphetamineID)\" to end session") { [weak self] _ in
+            self?.refreshKeepAwake()
+        }
     }
 
     private func readDarkMode() {
@@ -218,6 +270,10 @@ final class SystemToggles: ObservableObject {
     }
 
     func toggleKeepAwake() {
+        keepAwake ? stopKeepAwake() : startKeepAwake()
+    }
+
+    private func toggleBuiltInKeepAwake() {
         if keepAwake {
             IOPMAssertionRelease(assertionID)
             keepAwake = false

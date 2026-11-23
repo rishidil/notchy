@@ -298,7 +298,19 @@ struct TogglesRow: View {
     var body: some View {
         HStack(spacing: 8) {
             ToggleChip(symbol: "moon.fill", label: "Dark Mode", isOn: toggles.darkMode) { toggles.toggleDarkMode() }
-            ToggleChip(symbol: "cup.and.saucer.fill", label: "Keep Awake", isOn: toggles.keepAwake) { toggles.toggleKeepAwake() }
+            ToggleChip(symbol: "cup.and.saucer.fill",
+                       label: toggles.usesAmphetamine ? "Keep Awake (Amphetamine) — right-click for durations" : "Keep Awake",
+                       isOn: toggles.keepAwake) { toggles.toggleKeepAwake() }
+                .contextMenu {
+                    Button("Keep Awake for 1 Hour") { toggles.startKeepAwake(minutes: 60) }
+                    Button("Keep Awake for 2 Hours") { toggles.startKeepAwake(minutes: 120) }
+                    Button("Keep Awake for 4 Hours") { toggles.startKeepAwake(minutes: 240) }
+                    Button("Keep Awake Indefinitely") { toggles.startKeepAwake(minutes: 0) }
+                    if toggles.keepAwake {
+                        Divider()
+                        Button("Stop Keeping Awake") { toggles.stopKeepAwake() }
+                    }
+                }
             ToggleChip(symbol: volume.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", label: "Mute",
                        isOn: volume.muted) { volume.toggleMute() }
             ToggleChip(symbol: "camera.viewfinder", label: "Screenshot", isOn: false) {

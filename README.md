@@ -15,7 +15,7 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 | 📅 **Calendar** | Next event + today/tomorrow agenda, one-click **Join** for Meet/Zoom/Teams links, works with **Google Calendar** |
 | ⏱ **Timer** | Presets or custom; counts down in the notch and chimes when done |
 | 📥 **File shelf** | Drag files onto the notch to hold them, drag them out anywhere later, or AirDrop them |
-| ⚡ **Quick toggles** | Dark Mode, Keep Awake, Mute, Screenshot, Sleep Display |
+| ⚡ **Quick toggles** | Dark Mode, Keep Awake (uses [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) if installed; right-click for durations), Mute, Screenshot, Sleep Display |
 | 🚀 **App shelf** | Your favorite apps one click away (`+` to add, right-click to remove) |
 | 🔋 **Battery** | Charging animation when you plug in, battery level in the header |
 
@@ -40,7 +40,7 @@ Each feature asks only when needed:
 | Feature | Permission | How |
 | --- | --- | --- |
 | Calendar | Calendars | Prompted on first launch |
-| Music controls, Dark Mode | Automation (Spotify / Music / System Events) | Prompted on first use |
+| Music controls, Dark Mode, Amphetamine | Automation (Spotify / Music / System Events / Amphetamine) | Prompted on first use |
 | Notification previews | **Full Disk Access** | ⚙︎ → *Enable Notification Previews…*, then add **Notch Island** with `+` |
 | Replace system volume/brightness HUD | **Accessibility** | ⚙︎ → *Replace System Volume & Brightness HUD*, then allow it |
 
@@ -58,8 +58,32 @@ Tip: in Calendar.app → Settings → Accounts, set *Refresh Calendars* to **Pus
 ### Keep permissions across rebuilds (optional, for developers)
 
 `build.sh` signs ad-hoc by default, so macOS forgets permissions every time you rebuild. To fix that, create a
-self-signed certificate once: **Keychain Access → Certificate Assistant → Create a Certificate…**, name it
-`Notch Island Dev`, set the type to **Code Signing**. `build.sh` will pick it up automatically.
+self-signed code-signing certificate named `Notch Island Dev` once; `build.sh` picks it up automatically.
+
+Either use **Keychain Access → Certificate Assistant → Create a Certificate…** (name `Notch Island Dev`,
+type **Code Signing**), or from Terminal:
+
+```bash
+cat > /tmp/nid.cnf <<'CNF'
+[req]
+distinguished_name=dn
+x509_extensions=ext
+prompt=no
+[dn]
+CN=Notch Island Dev
+[ext]
+basicConstraints=critical,CA:false
+keyUsage=critical,digitalSignature
+extendedKeyUsage=critical,codeSigning
+CNF
+openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/nid.key -out /tmp/nid.pem -days 7300 -config /tmp/nid.cnf
+openssl pkcs12 -export -legacy -inkey /tmp/nid.key -in /tmp/nid.pem -out /tmp/nid.p12 -passout pass:temp -name "Notch Island Dev"
+security import /tmp/nid.p12 -k ~/Library/Keychains/login.keychain-db -P temp -T /usr/bin/codesign
+security add-trusted-cert -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db /tmp/nid.pem  # asks for your password
+rm /tmp/nid.key /tmp/nid.p12 /tmp/nid.pem /tmp/nid.cnf
+```
+
+After the first build signed this way, grant permissions one last time; they'll stick from then on.
 
 ## How it works
 
