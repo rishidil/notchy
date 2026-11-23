@@ -57,6 +57,7 @@ struct NotchRootView: View {
         .clipShape(shape)
         .contentShape(shape)
         .shadow(color: .black.opacity(raised ? 0.5 : 0), radius: 16, y: 6)
+        .offset(x: vm.bodyOffsetX)
         .onTapGesture { vm.handleTap() }
         .onDrop(of: [.fileURL], isTargeted: Binding(get: { vm.isDropTargeted }, set: { vm.dropTargetChanged($0) })) {
             vm.files.handleDrop($0)
@@ -87,6 +88,7 @@ struct SettingsMenuItems: View {
         }
         Toggle("Replace System Volume & Brightness HUD", isOn: Binding(get: { vm.replaceSystemHUD },
                                                                        set: { vm.setReplaceSystemHUD($0) }))
+        Toggle("Show Logo When Idle", isOn: Binding(get: { vm.showIdleBadge }, set: { vm.setShowIdleBadge($0) }))
         Toggle("Launch at Login", isOn: Binding(get: { vm.launchAtLogin }, set: { _ in vm.toggleLaunchAtLogin() }))
         Divider()
         Button("Add Google / Other Calendar Account…") { vm.calendar.openInternetAccounts() }
@@ -106,13 +108,23 @@ struct CollapsedView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                leading.frame(width: vm.sideWidth)
-                Spacer(minLength: 0)
-                trailing.frame(width: vm.sideWidth)
+            if vm.activity == .none {
+                HStack(spacing: 0) {
+                    if vm.showIdleBadge {
+                        NotchLogo(size: 15).frame(width: vm.idleBadgeWidth)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(height: vm.notchSize.height)
+            } else {
+                HStack(spacing: 0) {
+                    leading.frame(width: vm.sideWidth)
+                    Spacer(minLength: 0)
+                    trailing.frame(width: vm.sideWidth)
+                }
+                .frame(height: vm.notchSize.height)
+                bottom
             }
-            .frame(height: vm.notchSize.height)
-            bottom
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
@@ -260,6 +272,32 @@ struct EqualizerView: View {
             }
             .animation(.easeInOut(duration: 0.3), value: ctx.date)
         }
+    }
+}
+
+// MARK: - Logo
+
+/// Notch Island's mark: a glowing gradient "lens", a nod to the camera that lives in the notch.
+struct NotchLogo: View {
+    var size: CGFloat = 15
+    private static let colors: [Color] = [
+        Color(red: 0.35, green: 0.85, blue: 1.0), Color(red: 0.36, green: 0.42, blue: 1.0),
+        Color(red: 0.75, green: 0.35, blue: 1.0), Color(red: 1.0, green: 0.38, blue: 0.62),
+        Color(red: 1.0, green: 0.66, blue: 0.3), Color(red: 0.35, green: 0.85, blue: 1.0),
+    ]
+
+    var body: some View {
+        let gradient = AngularGradient(colors: Self.colors, center: .center, angle: .degrees(-40))
+        ZStack {
+            Circle().fill(gradient).blur(radius: size * 0.28).opacity(0.5)          // soft glow
+            Circle().strokeBorder(gradient, lineWidth: size * 0.17)                  // ring
+            Circle().fill(Color(white: 0.06)).padding(size * 0.17)                   // lens
+            Circle().fill(gradient).frame(width: size * 0.3, height: size * 0.3).opacity(0.9) // iris
+            Circle().fill(.white.opacity(0.9))                                       // glint
+                .frame(width: size * 0.14, height: size * 0.14)
+                .offset(x: -size * 0.16, y: -size * 0.16)
+        }
+        .frame(width: size, height: size)
     }
 }
 

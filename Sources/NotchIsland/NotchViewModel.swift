@@ -46,6 +46,7 @@ final class NotchViewModel: ObservableObject {
     @Published private(set) var transient: Transient?
     @Published private(set) var isDropTargeted = false
     @Published private(set) var replaceSystemHUD = UserDefaults.standard.bool(forKey: "replaceSystemHUD")
+    @Published private(set) var showIdleBadge = UserDefaults.standard.object(forKey: "showIdleBadge") as? Bool ?? true
 
     let music = MusicController()
     let battery = BatteryMonitor()
@@ -88,7 +89,7 @@ final class NotchViewModel: ObservableObject {
         keyTap.handler = { [weak self] key, fine, isDown, isRepeat in
             self?.handleMediaKey(key, fine: fine, isDown: isDown, isRepeat: isRepeat) ?? false
         }
-        if replaceSystemHUD { keyTap.start() }
+        if replaceSystemHUD { enableKeyTap() }
 
         let nc = NotificationCenter.default
         observers.append(nc.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { [weak self] _ in
@@ -121,11 +122,17 @@ final class NotchViewModel: ObservableObject {
     var expandedSize: CGSize { CGSize(width: 640, height: notchSize.height + 162) }
     var sideWidth: CGFloat { notchSize.height + 14 }
 
+    /// Small always-visible box to the left of the notch, so there's something to aim for when idle.
+    var idleBadgeWidth: CGFloat { notchSize.height + 8 }
+    private var showsIdleBadge: Bool { !isExpanded && showIdleBadge && activity == .none }
+    /// Shifts the island left when only the left-hand idle badge is showing.
+    var bodyOffsetX: CGFloat { showsIdleBadge ? -idleBadgeWidth / 2 : 0 }
+
     var collapsedSize: CGSize {
         let n = notchSize
         let wide = n.width + 2 * sideWidth
         switch activity {
-        case .none: return n
+        case .none: return showIdleBadge ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n
         case .hud: return CGSize(width: wide, height: n.height + 26)
         case .notification: return CGSize(width: max(wide, 420), height: n.height + 62)
         case .timerDone: return CGSize(width: max(wide, 360), height: n.height + 44)
@@ -150,8 +157,10 @@ final class NotchViewModel: ObservableObject {
     func interactiveRect(screenFrame: CGRect) -> CGRect {
         let s = shapeSize
         let w = s.width + (isExpanded ? 0 : 24)
-        let h = s.height + (isExpanded ? 10 : 4)
-        return CGRect(x: screenFrame.midX - w / 2, y: screenFrame.maxY - h, width: w, height: h)
+        let h = s.height + (isExpanded ? 10 : 8)
+        // Extend a few points above the screen: with the cursor pushed to the very top, mouseLocation.y == maxY,
+        // which a rect ending exactly at maxY wouldn't contain.
+        return CGRect(x: screenFrame.midX + bodyOffsetX - w / 2, y: screenFrame.maxY - h, width: w, height: h + 4)
     }
 
     // MARK: Hover / expand
@@ -276,17 +285,30 @@ final class NotchViewModel: ObservableObject {
     func setReplaceSystemHUD(_ on: Bool) {
         replaceSystemHUD = on
         UserDefaults.standard.set(on, forKey: "replaceSystemHUD")
+        if on { enableKeyTap() } else {
+            trustTimer?.invalidate()
+            trustTimer = nil
+            keyTap.stop()
+        }
+    }
+
+    /// Starts intercepting volume/brightness keys. Needs Accessibility permission: if it's missing,
+    /// shows the system prompt and starts the tap as soon as permission is granted.
+    private func enableKeyTap() {
         trustTimer?.invalidate()
         trustTimer = nil
-        guard on else { keyTap.stop(); return }
         if keyTap.start() { return }
-        // Needs Accessibility permission; prompt, then wait for it to be granted.
         MediaKeyTap.requestTrust()
         var attempts = 0
         trustTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
             attempts += 1
-            if self?.keyTap.start() == true || attempts > 90 { t.invalidate() }
+            if self?.keyTap.start() == true || attempts > 150 { t.invalidate() }
         }
+    }
+
+    func setShowIdleBadge(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "showIdleBadge")
+        withAnimation(Self.spring) { showIdleBadge = on }
     }
 
     // MARK: Settings
