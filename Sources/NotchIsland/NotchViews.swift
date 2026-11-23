@@ -276,23 +276,89 @@ struct CollapsedView: View {
         }
     }
 
-    private func hudLevel(_ kind: HUDKind) -> Double {
+    private func hudLevel(_ kind: HUDKind) -> Double { vm.hudLevel(kind) }
+    private func hudSymbol(_ kind: HUDKind) -> String { vm.hudSymbol(kind) }
+}
+
+extension NotchViewModel {
+    func hudLevel(_ kind: HUDKind) -> Double {
         switch kind {
-        case .volume: return vm.volume.muted ? 0 : Double(vm.volume.volume)
-        case .brightness: return Double(vm.brightness.level)
+        case .volume: return volume.muted ? 0 : Double(volume.volume)
+        case .brightness: return Double(brightness.level)
         }
     }
 
-    private func hudSymbol(_ kind: HUDKind) -> String {
+    func hudSymbol(_ kind: HUDKind) -> String {
         switch kind {
-        case .brightness: return vm.brightness.level < 0.5 ? "sun.min.fill" : "sun.max.fill"
+        case .brightness: return brightness.level < 0.5 ? "sun.min.fill" : "sun.max.fill"
         case .volume:
-            let v = vm.volume.volume
-            if vm.volume.muted || v == 0 { return "speaker.slash.fill" }
+            let v = volume.volume
+            if volume.muted || v == 0 { return "speaker.slash.fill" }
             return v < 0.33 ? "speaker.wave.1.fill" : (v < 0.66 ? "speaker.wave.2.fill" : "speaker.wave.3.fill")
         }
     }
+
+    /// The volume/brightness change currently being shown, if any.
+    var activeHUD: HUDKind? {
+        if case .hud(let k) = transient { return k }
+        return nil
+    }
 }
+
+/// Volume / brightness feedback while the island is expanded: a band of light sweeps left → right across
+/// the whole panel, and a thin level line along the bottom edge shows the new value, then fades away.
+struct ExpandedHUDOverlay: View {
+    let kind: HUDKind
+    @EnvironmentObject var vm: NotchViewModel
+    @State private var sweep: CGFloat = -1
+    @State private var lastSweep = Date.distantPast
+
+    var body: some View {
+        let level = vm.hudLevel(kind)
+        let tint: Color = kind == .volume ? .white : Color(red: 1, green: 0.84, blue: 0.35)
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            ZStack(alignment: .bottomLeading) {
+                // Sweep across the whole tab
+                LinearGradient(stops: [.init(color: .clear, location: 0),
+                                       .init(color: tint.opacity(0.16), location: 0.3),
+                                       .init(color: .white.opacity(0.32), location: 0.5),
+                                       .init(color: tint.opacity(0.16), location: 0.7),
+                                       .init(color: .clear, location: 1)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: w * 0.6, height: h * 1.6)
+                    .rotationEffect(.degrees(14))
+                    .offset(x: sweep * w, y: h * 0.3)
+                    .blendMode(.plusLighter)
+
+                // Level line along the bottom edge
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.12))
+                    Capsule().fill(tint)
+                        .frame(width: max(3, (w - 64) * level))
+                        .shadow(color: tint.opacity(0.7), radius: 4)
+                }
+                .frame(width: w - 64, height: 3)
+                .padding(.leading, 32)
+                .padding(.bottom, 9)
+                .animation(.spring(response: 0.25, dampingFraction: 0.85), value: level)
+            }
+            .frame(width: w, height: h, alignment: .bottomLeading)
+        }
+        .allowsHitTesting(false)
+        .onAppear(perform: runSweep)
+        .onChange(of: level) { _, _ in runSweep() }
+    }
+
+    /// One sweep per key press, but at most every ~0.45s so holding a key doesn't make it stutter.
+    private func runSweep() {
+        guard Date().timeIntervalSince(lastSweep) > 0.45 else { return }
+        lastSweep = Date()
+        sweep = -0.6
+        withAnimation(.easeOut(duration: 0.7)) { sweep = 1.1 }
+    }
+}
+
 
 /// Small circular battery gauge (Bluetooth devices).
 struct BatteryRing: View {

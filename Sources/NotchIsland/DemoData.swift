@@ -61,6 +61,10 @@ enum DemoData {
             vm.collapse()
             if let d = vm.bluetooth.devices.first { vm.show(.device(d), for: 60) }
         case "music": vm.timer.cancel(); vm.dismissTransient(); vm.collapse()
+        case "hud-open":
+            vm.tab = .lyrics
+            vm.expand()
+            vm.show(.hud(.volume), for: 60)
         case "drop": vm.demoDrop(hover: .airDrop)
         case "pomodoro":
             vm.timer.startPomodoro()

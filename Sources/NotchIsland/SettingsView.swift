@@ -10,13 +10,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowController()
     private var window: NSWindow?
 
-    func show(vm: NotchViewModel, welcome: Bool) {
+    func show(vm: NotchViewModel, welcome: Bool, page: SettingsPage = .tabs) {
         if let window {
+            NotificationCenter.default.post(name: .showSettingsPage, object: page)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        let root = SettingsView(welcome: welcome) { [weak self] in self?.window?.close() }
+        let root = SettingsView(welcome: welcome, initialPage: page) { [weak self] in self?.window?.close() }
             .environmentObject(vm)
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 780, height: 580),
                          styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
@@ -43,12 +44,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 // MARK: - Root
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case tabs, features, permissions, about
+    case tabs, features, connections, permissions, about
     var id: String { rawValue }
     var title: String {
         switch self {
         case .tabs: "Tabs"
         case .features: "Features"
+        case .connections: "Connections"
         case .permissions: "Permissions"
         case .about: "About"
         }
@@ -57,17 +59,28 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         switch self {
         case .tabs: "square.grid.2x2.fill"
         case .features: "slider.horizontal.3"
+        case .connections: "link"
         case .permissions: "lock.shield.fill"
         case .about: "info.circle.fill"
         }
     }
 }
 
+extension Notification.Name {
+    static let showSettingsPage = Notification.Name("notchy.showSettingsPage")
+}
+
 struct SettingsView: View {
     let welcome: Bool
     let close: () -> Void
     @EnvironmentObject var vm: NotchViewModel
-    @State private var page: SettingsPage = .tabs
+    @State private var page: SettingsPage
+
+    init(welcome: Bool, initialPage: SettingsPage = .tabs, close: @escaping () -> Void) {
+        self.welcome = welcome
+        self.close = close
+        _page = State(initialValue: initialPage)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -80,6 +93,7 @@ struct SettingsView: View {
                         switch page {
                         case .tabs: TabsPage()
                         case .features: FeaturesPage()
+                        case .connections: ConnectionsPage()
                         case .permissions: PermissionsPage()
                         case .about: AboutPage()
                         }
@@ -94,6 +108,9 @@ struct SettingsView: View {
         }
         .frame(width: 780, height: 580)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onReceive(NotificationCenter.default.publisher(for: .showSettingsPage)) { n in
+            if let p = n.object as? SettingsPage { page = p }
+        }
     }
 
     private var sidebar: some View {
@@ -341,6 +358,170 @@ private struct FeaturesPage: View {
         vm.weather.search(cityQuery) { places in
             results = places
             searching = false
+        }
+    }
+}
+
+// MARK: - Connections
+
+private struct ConnectionsPage: View {
+    @EnvironmentObject var vm: NotchViewModel
+
+    var body: some View {
+        ConnectionsContent(calendar: vm.calendar, shelf: vm.shelf, files: vm.files, toggles: vm.toggles, music: vm.music)
+    }
+}
+
+private struct ConnectionsContent: View {
+    @ObservedObject var calendar: CalendarService
+    @ObservedObject var shelf: AppShelf
+    @ObservedObject var files: FileShelf
+    @ObservedObject var toggles: SystemToggles
+    @ObservedObject var music: MusicController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(title: "Connections", subtitle: "Accounts, apps and services Notchy works with.")
+
+            group("Calendar accounts", symbol: "calendar", tint: .red) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Google Calendar").font(.system(size: 13, weight: .semibold))
+                        Text(calendar.hasGoogle ? "Connected through your Mac's Internet Accounts"
+                             : "Add your Google account to your Mac to see its calendars in Notchy")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if calendar.hasGoogle {
+                        Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 12, weight: .medium))
+                    }
+                    Button(calendar.hasGoogle ? "Add Another…" : "Connect Google…") { calendar.openInternetAccounts() }
+                }
+                Divider()
+                HStack {
+                    Text("Outlook, iCloud, Exchange and others work the same way.").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Manage Accounts…") { calendar.openInternetAccounts() }.controlSize(.small)
+                }
+                if !calendar.authorized {
+                    Divider()
+                    HStack {
+                        Label("Notchy doesn't have calendar access yet", systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12)).foregroundStyle(.orange)
+                        Spacer()
+                        Button(calendar.denied ? "Open Settings" : "Allow Access") { calendar.requestAccess() }
+                    }
+                } else if !calendar.calendars.isEmpty {
+                    Divider()
+                    Text("Calendars shown in Notchy").font(.system(size: 12, weight: .semibold))
+                    let groups = Dictionary(grouping: calendar.calendars, by: \.source)
+                    ForEach(groups.keys.sorted(), id: \.self) { source in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(source.uppercased()).font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                            ForEach(groups[source] ?? []) { c in
+                                Toggle(isOn: Binding(get: { !calendar.excluded.contains(c.id) },
+                                                     set: { calendar.setCalendar(c.id, included: $0) })) {
+                                    HStack(spacing: 6) {
+                                        Circle().fill(Color(nsColor: c.color ?? .systemBlue)).frame(width: 8, height: 8)
+                                        Text(c.title).font(.system(size: 12))
+                                    }
+                                }
+                                .toggleStyle(.checkbox)
+                            }
+                        }
+                    }
+                }
+            }
+
+            group("Music", symbol: "music.note", tint: .pink) {
+                ForEach(PlayerApp.allCases) { p in
+                    HStack {
+                        Text(p == .spotify ? "Spotify" : "Apple Music").font(.system(size: 13, weight: .semibold))
+                        Spacer()
+                        if p.appURL == nil {
+                            Text("Not installed").font(.system(size: 11)).foregroundStyle(.secondary)
+                            if p == .spotify {
+                                Link("Get Spotify", destination: URL(string: "https://www.spotify.com/download/mac/")!).font(.system(size: 12))
+                            }
+                        } else {
+                            Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 12, weight: .medium))
+                            Button("Open") { music.launch(p) }.controlSize(.small)
+                        }
+                    }
+                }
+                Text("macOS asks once to let Notchy control each app. Lyrics come from LRCLIB.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+
+            group("Keep Awake", symbol: "cup.and.saucer.fill", tint: .brown) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Amphetamine").font(.system(size: 13, weight: .semibold))
+                        Text(toggles.usesAmphetamine ? "The coffee button starts and stops Amphetamine sessions (right-click it for durations)"
+                             : "Not installed. Notchy uses its own keep-awake instead")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if toggles.usesAmphetamine {
+                        Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 12, weight: .medium))
+                    } else {
+                        Link("Get Amphetamine", destination: URL(string: "https://apps.apple.com/app/amphetamine/id937984704")!).font(.system(size: 12))
+                    }
+                }
+            }
+
+            group("App shelf", symbol: "square.grid.3x3.fill", tint: .blue) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(shelf.apps) { app in
+                            VStack(spacing: 4) {
+                                Image(nsImage: app.icon).resizable().frame(width: 36, height: 36)
+                                    .overlay(alignment: .topTrailing) {
+                                        Button { shelf.remove(app) } label: {
+                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .gray)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .offset(x: 5, y: -5)
+                                        .help("Remove \(app.name)")
+                                    }
+                                Text(app.name).font(.system(size: 10)).lineLimit(1).frame(width: 56)
+                            }
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+                HStack {
+                    Button("Add Apps…") { shelf.addApps() }
+                    Button("Reset to Defaults") { shelf.reset() }
+                    Spacer()
+                }
+            }
+
+            group("File shelf", symbol: "tray.full.fill", tint: .indigo) {
+                HStack {
+                    Text(files.items.isEmpty ? "Empty. Drag files onto the notch to keep them here"
+                         : "\(files.items.count) item\(files.items.count == 1 ? "" : "s") on the shelf")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Clear Shelf") { files.clear() }.disabled(files.items.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func group<Content: View>(_ title: String, symbol: String, tint: Color, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(tint.gradient))
+                Text(title).font(.system(size: 14, weight: .semibold))
+            }
+            VStack(alignment: .leading, spacing: 10) { content() }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
         }
     }
 }

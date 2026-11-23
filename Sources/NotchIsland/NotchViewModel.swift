@@ -129,8 +129,8 @@ final class NotchViewModel: ObservableObject {
             .store(in: &bag)
 
         battery.onPowerSourceChange = { [weak self] in self?.show(.battery, for: 3) }
-        volume.onChange = { [weak self] in self?.show(.hud(.volume), for: 1.6) }
-        brightness.onChange = { [weak self] in self?.show(.hud(.brightness), for: 1.6) }
+        volume.onChange = { [weak self] in self?.showHUD(.volume) }
+        brightness.onChange = { [weak self] in self?.showHUD(.brightness) }
         timer.onFinish = { [weak self] in self?.show(.timerDone, for: 10) }
         timer.onPhaseChange = { [weak self] phase in
             let text = phase == .focus ? "Break's over — time to focus" : "Nice work! Take a \(phase == .longBreak ? "long " : "")break"
@@ -376,6 +376,11 @@ final class NotchViewModel: ObservableObject {
         scheduleTransientDismiss(after: seconds)
     }
 
+    /// Volume/brightness feedback: brief pop-up when closed; when open, the level line lingers a little longer.
+    func showHUD(_ kind: HUDKind) {
+        show(.hud(kind), for: isExpanded ? 2.5 : 1.6)
+    }
+
     func dismissTransient() {
         transientWork?.cancel()
         withAnimation(Self.spring) { transient = nil }
@@ -478,13 +483,13 @@ final class NotchViewModel: ObservableObject {
             case .volumeDown: volume.step(up: false, fine: fine)
             default: if !isRepeat { volume.toggleMute() }
             }
-            show(.hud(.volume), for: 1.6)
+            showHUD(.volume)
             return true
         case .brightnessUp, .brightnessDown:
             guard brightness.canSet else { return false }
             guard isDown else { return true }
             brightness.step(up: key == .brightnessUp, fine: fine)
-            show(.hud(.brightness), for: 1.6)
+            showHUD(.brightness)
             return true
         }
     }
@@ -552,9 +557,9 @@ final class NotchViewModel: ObservableObject {
         objectWillChange.send()
     }
 
-    func openSettings(welcome: Bool = false) {
+    func openSettings(welcome: Bool = false, page: SettingsPage = .tabs) {
         collapse()
-        SettingsWindowController.shared.show(vm: self, welcome: welcome)
+        SettingsWindowController.shared.show(vm: self, welcome: welcome, page: page)
     }
 
     // MARK: URL commands (notchy://…), handy for Shortcuts / Raycast
@@ -572,7 +577,7 @@ final class NotchViewModel: ObservableObject {
             dropPreview = false
             collapse()
         case "settings":
-            openSettings(welcome: q("welcome") == "1")
+            openSettings(welcome: q("welcome") == "1", page: q("page").flatMap(SettingsPage.init(rawValue:)) ?? .tabs)
         case "timer":
             if let m = q("minutes").flatMap(Double.init) { timer.start(seconds: m * 60) }
         case "pomodoro":

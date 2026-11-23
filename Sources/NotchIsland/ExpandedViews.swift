@@ -34,6 +34,14 @@ struct ExpandedView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .foregroundStyle(.white)
+        // Volume / brightness changes stay visible whichever tab is open.
+        .overlay {
+            if let kind = vm.activeHUD {
+                ExpandedHUDOverlay(kind: kind)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.35)))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: vm.activeHUD)
     }
 }
 
