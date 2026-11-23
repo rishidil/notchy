@@ -2,6 +2,27 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - Drop handling
+
+/// Routes file drops to whichever drop-action tile is under the cursor.
+struct IslandDropDelegate: DropDelegate {
+    let vm: NotchViewModel
+
+    func validateDrop(info: DropInfo) -> Bool { vm.acceptsDrops && info.hasItemsConforming(to: [.fileURL]) }
+    func dropEntered(info: DropInfo) {
+        vm.dropTargetChanged(true)
+        vm.updateDropHover(info.location)
+    }
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        vm.updateDropHover(info.location)
+        return DropProposal(operation: .copy)
+    }
+    func dropExited(info: DropInfo) { vm.dropTargetChanged(false) }
+    func performDrop(info: DropInfo) -> Bool {
+        vm.performDrop(info.itemProviders(for: [.fileURL]), at: info.location)
+    }
+}
+
 // MARK: - Shape
 
 /// Notch silhouette: flared top corners that blend into the bezel, rounded bottom corners.
@@ -54,15 +75,14 @@ struct NotchRootView: View {
             }
         }
         .frame(width: vm.shapeSize.width, height: vm.shapeSize.height)
+        .coordinateSpace(name: "island")
         .clipShape(shape)
         .contentShape(shape)
         .shadow(color: .black.opacity(raised ? 0.5 : 0), radius: 16, y: 6)
         .opacity(vm.isHiddenIdle ? 0 : 1)
         .offset(x: vm.bodyOffsetX)
         .onTapGesture { vm.handleTap() }
-        .onDrop(of: [.fileURL], isTargeted: Binding(get: { vm.isDropTargeted }, set: { vm.dropTargetChanged($0) })) {
-            vm.files.handleDrop($0)
-        }
+        .onDrop(of: [.fileURL], delegate: IslandDropDelegate(vm: vm))
         .contextMenu {
             if case .notification(let n) = vm.transient {
                 Button("Mute Previews from \(n.appName)") { vm.muteNotifications(from: n) }
@@ -81,6 +101,8 @@ struct SettingsMenuItems: View {
     @EnvironmentObject var vm: NotchViewModel
 
     var body: some View {
+        Button("Settings…") { vm.openSettings() }
+        Divider()
         if vm.notifications.hasAccess {
             Toggle("Notification Previews", isOn: Binding(get: { vm.notifications.enabled },
                                                           set: { vm.notifications.setEnabled($0) }))
@@ -106,7 +128,7 @@ struct SettingsMenuItems: View {
             Button("Unmute All Notification Previews") { vm.notifications.unmuteAll() }
         }
         Divider()
-        Button("Quit Notch Island") { NSApp.terminate(nil) }
+        Button("Quit Notchy") { NSApp.terminate(nil) }
     }
 }
 
@@ -152,17 +174,26 @@ struct CollapsedView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color(nsColor: vm.calendar.nextEvent?.color ?? .systemOrange))
         case .timer, .timerDone:
-            Image(systemName: "timer")
+            Image(systemName: vm.timer.phase?.symbol ?? "timer")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(timerColor)
         case .hud(let kind):
             Image(systemName: hudSymbol(kind))
                 .font(.system(size: 12, weight: .semibold))
                 .contentTransition(.symbolEffect(.replace))
+        case .device(let d):
+            Image(systemName: d.kind.symbol)
+                .font(.system(size: 14, weight: .semibold))
+        case .toast(let symbol, _, let tint):
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
         case .notification, .none:
             EmptyView()
         }
     }
+
+    private var timerColor: Color { vm.timer.phase?.color ?? .orange }
 
     @ViewBuilder private var trailing: some View {
         switch vm.activity {
@@ -180,7 +211,7 @@ struct CollapsedView: View {
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 Text(TimerService.shortFormat(vm.timer.remaining(at: ctx.date)))
                     .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.orange.opacity(vm.timer.isRunning ? 1 : 0.5))
+                    .foregroundStyle(timerColor.opacity(vm.timer.isRunning ? 1 : 0.5))
             }
         case .timerDone:
             Text("0:00").font(.system(size: 12, weight: .semibold).monospacedDigit()).foregroundStyle(.orange)
@@ -188,6 +219,10 @@ struct CollapsedView: View {
             Text("\(Int((hudLevel(kind) * 100).rounded()))")
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.7))
+        case .device(let d):
+            if let level = d.battery?.lowest { BatteryRing(level: level) } else { EmptyView() }
+        case .toast:
+            EmptyView()
         case .notification, .none:
             EmptyView()
         }
@@ -212,6 +247,30 @@ struct CollapsedView: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 38)
+        case .toast(_, let text, _):
+            Text(text)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 18)
+                .frame(height: 28)
+        case .device(let d):
+            HStack(spacing: 6) {
+                Text(d.name).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                Text("Connected").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+            }
+            .frame(height: 24)
+        case .music where vm.showsLyricLine:
+            TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
+                Text(vm.lyrics.line(at: vm.music.position(at: ctx.date)) ?? "♪")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(vm.music.accent)
+                    .lineLimit(1)
+                    .padding(.horizontal, 16)
+                    .frame(height: 22)
+                    .id(vm.lyrics.index(at: vm.music.position(at: ctx.date)) ?? -1)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .animation(.easeOut(duration: 0.25), value: vm.lyrics.index(at: vm.music.position(at: ctx.date)))
+            }
         default:
             EmptyView()
         }
@@ -232,6 +291,24 @@ struct CollapsedView: View {
             if vm.volume.muted || v == 0 { return "speaker.slash.fill" }
             return v < 0.33 ? "speaker.wave.1.fill" : (v < 0.66 ? "speaker.wave.2.fill" : "speaker.wave.3.fill")
         }
+    }
+}
+
+/// Small circular battery gauge (Bluetooth devices).
+struct BatteryRing: View {
+    let level: Int
+    var size: CGFloat = 20
+
+    var body: some View {
+        let color: Color = level <= 20 ? .red : .green
+        ZStack {
+            Circle().stroke(color.opacity(0.25), lineWidth: 2.5)
+            Circle().trim(from: 0, to: CGFloat(level) / 100)
+                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(level)").font(.system(size: size * 0.36, weight: .bold).monospacedDigit())
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -286,7 +363,7 @@ struct EqualizerView: View {
 
 // MARK: - Logo
 
-/// Notch Island's mark: a glowing gradient "lens", a nod to the camera that lives in the notch.
+/// Notchy's mark: a glowing gradient "lens", a nod to the camera that lives in the notch.
 struct NotchLogo: View {
     var size: CGFloat = 15
     private static let colors: [Color] = [

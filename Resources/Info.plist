@@ -3,19 +3,19 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Notch Island</string>
+    <string>Notchy</string>
     <key>CFBundleDisplayName</key>
-    <string>Notch Island</string>
+    <string>Notchy</string>
     <key>CFBundleIdentifier</key>
     <string>dev.notchisland.app</string>
     <key>CFBundleExecutable</key>
-    <string>NotchIsland</string>
+    <string>Notchy</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1</string>
+    <string>1.2</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
@@ -25,10 +25,28 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Notch Island controls Spotify and Apple Music and toggles Dark Mode.</string>
+    <string>Notchy controls Spotify and Apple Music and toggles Dark Mode.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Notch Island shows your next calendar event in the notch.</string>
+    <string>Notchy shows your next calendar event in the notch.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Notchy uses your approximate location to show the local weather.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Notchy uses your approximate location to show the local weather.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Notchy shows your connected Bluetooth devices and their battery levels.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.notchisland.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>notchy</string>
+                <string>notchisland</string>
+            </array>
+        </dict>
+    </array>
     <key>NSCalendarsUsageDescription</key>
-    <string>Notch Island shows your next calendar event in the notch.</string>
+    <string>Notchy shows your next calendar event in the notch.</string>
 </dict>
 </plist>

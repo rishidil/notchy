@@ -10,11 +10,22 @@ struct ExpandedView: View {
         VStack(spacing: 0) {
             HeaderBar().frame(height: vm.notchSize.height)
             Group {
-                switch vm.tab {
-                case .home: HomeTab()
-                case .calendar: CalendarTab(calendar: vm.calendar)
-                case .timer: TimerTab(timer: vm.timer)
-                case .shelf: ShelfTab(files: vm.files)
+                if vm.showsDropActions {
+                    DropActionsView()
+                } else {
+                    switch vm.tab {
+                    case .home: HomeTab()
+                    case .calendar: CalendarTab(calendar: vm.calendar)
+                    case .timer: TimerTab(timer: vm.timer)
+                    case .shelf: ShelfTab(files: vm.files)
+                    case .weather: WeatherTab(weather: vm.weather)
+                    case .todo: TodoTab(todos: vm.todos)
+                    case .lyrics: LyricsTab(lyrics: vm.lyrics, music: vm.music)
+                    case .bluetooth: BluetoothTab(bluetooth: vm.bluetooth)
+                    case .system: SystemTab(system: vm.system, battery: vm.battery)
+                    case .screenTime: ScreenTimeTab(tracker: vm.screenTime)
+                    case .notifications: NotificationsTab(notifications: vm.notifications)
+                    }
                 }
             }
             .padding(.horizontal, 24)
@@ -30,52 +41,71 @@ struct HeaderBar: View {
     @EnvironmentObject var vm: NotchViewModel
 
     var body: some View {
+        // Tabs fill the space left of the notch first, then continue on the right.
+        // With many tabs, slim them down and drop the battery readout (it's also in the System tab).
+        let tabs = vm.tabs
+        let w: CGFloat = tabs.count > 9 ? 25 : (tabs.count > 7 ? 27 : 30)
+        let side = (vm.expandedSize.width - vm.notchSize.width) / 2 - 34
+        let leftCount = min(tabs.count, max(1, Int(side / (w + 2))))
         HStack(spacing: 8) {
-            HStack(spacing: 2) {
-                ForEach(NotchTab.allCases, id: \.self) { t in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) { vm.tab = t }
-                    } label: {
-                        Image(systemName: t.symbol)
-                            .font(.system(size: 11, weight: .semibold))
-                            .frame(width: 30, height: 22)
-                            .background(Capsule().fill(vm.tab == t ? Color.white.opacity(0.16) : .clear))
-                            .foregroundStyle(vm.tab == t ? Color.white : Color.white.opacity(0.5))
-                            .overlay(alignment: .topTrailing) { badge(for: t) }
-                    }
-                    .buttonStyle(PressableStyle())
-                }
-            }
+            tabGroup(Array(tabs.prefix(leftCount)), width: w)
             Spacer(minLength: vm.notchSize.width + 24)
-            BatteryBadge(battery: vm.battery)
-            Menu {
-                SettingsMenuItems()
-            } label: {
+            if tabs.count > leftCount { tabGroup(Array(tabs.dropFirst(leftCount)), width: w) }
+            if tabs.count <= 9 { BatteryBadge(battery: vm.battery, compact: tabs.count > 7).fixedSize() }
+            Button { vm.openSettings() } label: {
                 Image(systemName: "gearshape.fill")
+                    .font(.system(size: 13))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .buttonStyle(PressableStyle())
             .opacity(0.6)
+            .help("Settings")
         }
         .padding(.horizontal, 22)
     }
 
+    private func tabGroup(_ tabs: [NotchTab], width: CGFloat) -> some View {
+        HStack(spacing: 2) {
+            ForEach(tabs) { t in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { vm.tab = t }
+                } label: {
+                    Image(systemName: t.symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: width, height: 22)
+                        .background(Capsule().fill(vm.tab == t && !vm.showsDropActions ? Color.white.opacity(0.16) : .clear))
+                        .foregroundStyle(vm.tab == t ? Color.white : Color.white.opacity(0.5))
+                        .overlay(alignment: .topTrailing) { badge(for: t) }
+                }
+                .buttonStyle(PressableStyle())
+                .help(t.title)
+            }
+        }
+    }
+
     @ViewBuilder private func badge(for tab: NotchTab) -> some View {
-        let show = (tab == .timer && vm.timer.isActive) || (tab == .shelf && !vm.files.items.isEmpty)
-        if show {
-            Circle().fill(tab == .timer ? Color.orange : Color.blue).frame(width: 5, height: 5).offset(x: -4, y: 3)
+        let color: Color? = switch tab {
+        case .timer: vm.timer.isActive ? (vm.timer.phase?.color ?? .orange) : nil
+        case .shelf: vm.files.items.isEmpty ? nil : .blue
+        case .todo: vm.todos.remaining > 0 ? .green : nil
+        case .lyrics: vm.lyrics.state == .synced ? .pink : nil
+        default: nil
+        }
+        if let color {
+            Circle().fill(color).frame(width: 5, height: 5).offset(x: -4, y: 3)
         }
     }
 }
 
 struct BatteryBadge: View {
     @ObservedObject var battery: BatteryMonitor
+    var compact = false
 
     var body: some View {
         if battery.hasBattery {
             HStack(spacing: 4) {
-                Text("\(battery.level)%").font(.system(size: 11, weight: .semibold).monospacedDigit())
+                if !compact { Text("\(battery.level)%").font(.system(size: 11, weight: .semibold).monospacedDigit()) }
                 Image(systemName: symbol).font(.system(size: 14)).symbolRenderingMode(.hierarchical)
             }
             .foregroundStyle(battery.onAC ? Color.green : (battery.level <= 20 ? .red : .white.opacity(0.8)))
@@ -392,7 +422,7 @@ struct CalendarTab: View {
         if !calendar.authorized {
             VStack(spacing: 8) {
                 Image(systemName: "calendar.badge.exclamationmark").font(.system(size: 26))
-                Text(calendar.denied ? "Calendar access was denied" : "Notch Island needs calendar access")
+                Text(calendar.denied ? "Calendar access was denied" : "Notchy needs calendar access")
                     .font(.system(size: 13, weight: .semibold))
                 PillButton(title: calendar.denied ? "Open System Settings" : "Allow Access") { calendar.requestAccess() }
             }
@@ -519,10 +549,70 @@ struct AgendaRow: View {
 struct TimerTab: View {
     @ObservedObject var timer: TimerService
     @State private var customMinutes = 20
-    private let presets = [1, 3, 5, 10, 15, 25, 30, 45, 60]
+    @AppStorage("timerMode") private var pomodoroMode = false
+    private let presets = [1, 3, 5, 10, 15, 25, 30, 45]
 
     var body: some View {
-        if timer.isActive { running } else { picker }
+        if timer.isActive { running } else { pomodoroMode ? AnyView(pomodoroPicker) : AnyView(picker) }
+    }
+
+    private var accent: Color { timer.phase?.color ?? .orange }
+
+    private var modePicker: some View {
+        HStack(spacing: 2) {
+            ForEach([false, true], id: \.self) { pomo in
+                Button { pomodoroMode = pomo } label: {
+                    Text(pomo ? "Pomodoro" : "Timer")
+                        .font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 12).frame(height: 22)
+                        .background(Capsule().fill(pomodoroMode == pomo ? Color.white.opacity(0.16) : .clear))
+                        .foregroundStyle(pomodoroMode == pomo ? Color.white : Color.white.opacity(0.5))
+                }
+                .buttonStyle(PressableStyle())
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(.white.opacity(0.06)))
+    }
+
+    private var pomodoroPicker: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Focus sessions").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                modePicker
+            }
+            HStack(spacing: 10) {
+                phaseCard("Focus", minutes: $timer.focusMinutes, color: PomodoroPhase.focus.color, symbol: "brain.head.profile")
+                phaseCard("Short break", minutes: $timer.shortBreakMinutes, color: .green, symbol: "cup.and.saucer.fill")
+                phaseCard("Long break", minutes: $timer.longBreakMinutes, color: .teal, symbol: "figure.walk")
+                VStack(spacing: 8) {
+                    PillButton(title: "Start", symbol: "play.fill", tint: PomodoroPhase.focus.color, foreground: .black) {
+                        timer.startPomodoro()
+                    }
+                    Text("Long break every \(timer.cyclesBeforeLongBreak)")
+                        .font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.45))
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func phaseCard(_ title: String, minutes: Binding<Int>, color: Color, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: symbol).font(.system(size: 10.5, weight: .medium)).foregroundStyle(color)
+            HStack(spacing: 6) {
+                IconButton(symbol: "minus", size: 10) { minutes.wrappedValue = max(1, minutes.wrappedValue - 1) }
+                Text("\(minutes.wrappedValue)")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded).monospacedDigit())
+                    .frame(minWidth: 30)
+                IconButton(symbol: "plus", size: 10) { minutes.wrappedValue = min(120, minutes.wrappedValue + 1) }
+            }
+            Text("minutes").font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.45))
+        }
+        .padding(10)
+        .frame(width: 128, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.07)))
     }
 
     private var running: some View {
@@ -533,7 +623,7 @@ struct TimerTab: View {
                     Circle().stroke(.white.opacity(0.12), lineWidth: 7)
                     Circle()
                         .trim(from: 0, to: timer.progress(at: ctx.date))
-                        .stroke(Color.orange, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .stroke(accent, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .animation(.linear(duration: 0.25), value: remaining)
                     Text(TimerService.format(remaining))
@@ -542,18 +632,40 @@ struct TimerTab: View {
                 .frame(width: 112, height: 112)
             }
             VStack(alignment: .leading, spacing: 12) {
-                Text(timer.isRunning ? "Timer running" : "Paused")
-                    .font(.system(size: 15, weight: .semibold))
-                Text("It'll show in the notch while it runs.")
-                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+                if let phase = timer.phase {
+                    HStack(spacing: 8) {
+                        Label(phase.title, systemImage: phase.symbol)
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(phase.color)
+                        if !timer.isRunning { Text("Paused").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5)) }
+                    }
+                    HStack(spacing: 5) {
+                        let cycles = max(1, timer.cyclesBeforeLongBreak)
+                        let done = timer.completedFocus % cycles
+                        ForEach(0..<cycles, id: \.self) { i in
+                            Circle().fill(i < done ? PomodoroPhase.focus.color : .white.opacity(0.18)).frame(width: 7, height: 7)
+                        }
+                        Text("\(timer.completedFocus) session\(timer.completedFocus == 1 ? "" : "s") done")
+                            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).padding(.leading, 4)
+                    }
+                } else {
+                    Text(timer.isRunning ? "Timer running" : "Paused")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("It'll show in the notch while it runs.")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+                }
                 HStack(spacing: 8) {
                     PillButton(title: timer.isRunning ? "Pause" : "Resume",
                                symbol: timer.isRunning ? "pause.fill" : "play.fill",
-                               tint: .orange.opacity(0.9), foreground: .black) {
+                               tint: accent.opacity(0.9), foreground: .black) {
                         timer.isRunning ? timer.pause() : timer.resume()
                     }
-                    PillButton(title: "+1 min", symbol: "plus") { timer.addMinute() }
-                    PillButton(title: "Cancel", symbol: "xmark") { timer.cancel() }
+                    if timer.phase != nil {
+                        PillButton(title: "Skip", symbol: "forward.end.fill") { timer.skipPhase() }
+                        PillButton(title: "Stop", symbol: "stop.fill") { timer.cancel() }
+                    } else {
+                        PillButton(title: "+1 min", symbol: "plus") { timer.addMinute() }
+                        PillButton(title: "Cancel", symbol: "xmark") { timer.cancel() }
+                    }
                 }
             }
             Spacer(minLength: 0)
@@ -562,8 +674,12 @@ struct TimerTab: View {
     }
 
     private var picker: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Start a timer").font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Start a timer").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                modePicker
+            }
             HStack(spacing: 6) {
                 ForEach(presets, id: \.self) { m in
                     Button { timer.start(seconds: Double(m) * 60) } label: {

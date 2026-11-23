@@ -110,15 +110,30 @@ final class MusicController: ObservableObject {
 
     // MARK: State
 
+    func applyDemo(title: String, artist: String, album: String, duration: Double, position: Double, artwork: NSImage?) {
+        player = .spotify
+        self.title = title
+        self.artist = artist
+        self.album = album
+        self.duration = duration
+        isPlaying = true
+        positionAnchor = position
+        anchorDate = Date()
+        if let artwork { setArtwork(artwork) }
+    }
+
     func refresh() {
+        guard !isDemoMode else { return }
         if let p = player { fetch(p) } else { refreshAll() }
     }
 
     private func refreshAll() {
+        guard !isDemoMode else { return }
         for p in PlayerApp.allCases where p.isRunning { fetch(p) }
     }
 
     private func handle(_ n: Notification, from app: PlayerApp) {
+        guard !isDemoMode else { return }
         let info = n.userInfo ?? [:]
         var s = Snapshot(state: ((info["Player State"] as? String) ?? "stopped").lowercased())
         s.title = (info["Name"] as? String) ?? ""

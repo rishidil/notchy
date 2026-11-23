@@ -1,9 +1,13 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Borderless, non-activating panel that floats above the menu bar.
 final class NotchPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    /// Only true while a tab with a text field (To-Do) is open, so clicking the island
+    /// doesn't steal keyboard focus from the app you're using.
+    var allowsKey = false
+    override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 }
 
@@ -19,6 +23,8 @@ final class NotchWindowController {
     private var monitors: [Any] = []
     private var pollTimer: Timer?
     private var screenObserver: NSObjectProtocol?
+    private var bag = Set<AnyCancellable>()
+    var viewModel: NotchViewModel { vm }
 
     /// Fixed canvas size; SwiftUI draws the island at its top-center.
     private let canvas = CGSize(width: 780, height: 280)
@@ -46,6 +52,20 @@ final class NotchWindowController {
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.layout() }
         installMouseMonitors()
+
+        // Let the panel take keyboard focus only for the To-Do tab; hand focus back when the island closes.
+        vm.$isExpanded.combineLatest(vm.$tab)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] expanded, tab in
+                guard let self else { return }
+                let wantsKey = expanded && tab == .todo
+                self.panel.allowsKey = wantsKey
+                if !wantsKey && self.panel.isKeyWindow {
+                    self.panel.resignKey()
+                    NSWorkspace.shared.frontmostApplication?.activate()
+                }
+            }
+            .store(in: &bag)
     }
 
     func show() {

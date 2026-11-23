@@ -57,7 +57,58 @@ final class FileShelf: ObservableObject {
         return accepted
     }
 
+    /// Resolves dropped item providers to file URLs.
+    static func loadURLs(_ providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) {
+        let group = DispatchGroup()
+        var urls: [URL] = []
+        let lock = NSLock()
+        for p in providers where p.canLoadObject(ofClass: URL.self) {
+            group.enter()
+            _ = p.loadObject(ofClass: URL.self) { url, _ in
+                if let url, url.isFileURL { lock.lock(); urls.append(url); lock.unlock() }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { completion(urls) }
+    }
+
+    /// Zips the files next to the first one and reveals the archive in Finder.
+    static func compress(_ urls: [URL]) {
+        guard let first = urls.first else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let parent = first.deletingLastPathComponent()
+            let base = urls.count == 1 ? first.deletingPathExtension().lastPathComponent : "Archive"
+            var dest = parent.appendingPathComponent(base + ".zip")
+            var n = 2
+            while FileManager.default.fileExists(atPath: dest.path) {
+                dest = parent.appendingPathComponent("\(base) \(n).zip")
+                n += 1
+            }
+            let p = Process()
+            if urls.count == 1 {
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+                p.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", first.path, dest.path]
+            } else {
+                // zip relative names from the shared folder (or full paths if they live in different folders)
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+                let sameFolder = urls.allSatisfy { $0.deletingLastPathComponent() == parent }
+                p.currentDirectoryURL = parent
+                p.arguments = ["-r", "-q", "-X", dest.path] + urls.map { sameFolder ? $0.lastPathComponent : $0.path }
+            }
+            try? p.run()
+            p.waitUntilExit()
+            DispatchQueue.main.async {
+                if FileManager.default.fileExists(atPath: dest.path) {
+                    NSWorkspace.shared.activateFileViewerSelecting([dest])
+                }
+            }
+        }
+    }
+
+    func applyDemo(_ urls: [URL]) { items = urls.map { Item(url: $0) } }
+
     private func save() {
+        guard !isDemoMode else { return }
         UserDefaults.standard.set(items.map(\.url.path), forKey: key)
     }
 }

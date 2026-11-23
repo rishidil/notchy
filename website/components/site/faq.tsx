@@ -1,0 +1,97 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { SectionHeading } from "@/components/site/section-heading";
+import { SITE } from "@/lib/site";
+
+const faqs: { q: string; a: React.ReactNode }[] = [
+  {
+    q: "Is it really free?",
+    a: (
+      <p>
+        Yes. Notchy is free and open source under the MIT license. No account, no
+        subscription, no ads. The full source is on{" "}
+        <a href={SITE.githubUrl} target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+        .
+      </p>
+    ),
+  },
+  {
+    q: "Is my data private?",
+    a: (
+      <p>
+        Everything runs on your Mac. Weather comes from Open-Meteo and lyrics from LRCLIB, and
+        neither needs an account. Notification content and Screen Time data never leave your Mac.
+      </p>
+    ),
+  },
+  {
+    q: "Why does macOS show a security warning?",
+    a: (
+      <p>
+        The app isn&rsquo;t notarized through Apple&rsquo;s paid developer program, so macOS
+        can&rsquo;t verify who made it. The code is open for anyone to inspect, and you only need to
+        click <b>Open Anyway</b> in System Settings → Privacy &amp; Security once.
+      </p>
+    ),
+  },
+  {
+    q: "Does it work on Macs without a notch?",
+    a: (
+      <p>
+        Yes — on an M1 MacBook Air, 13&Prime; MacBook Pro, iMac or external display, the island stays
+        hidden until something happens (music, a timer, volume…), then appears as a slim pill at the
+        top of the screen. Push your cursor to the top center to open it.
+      </p>
+    ),
+  },
+  {
+    q: "Which music apps are supported?",
+    a: (
+      <p>
+        Spotify and Apple Music, including artwork, playback controls, seeking and live lyrics.
+      </p>
+    ),
+  },
+  {
+    q: "How do I quit or change settings?",
+    a: (
+      <p>
+        Right-click the island, or click the ⚙︎ in the expanded view and choose{" "}
+        <b>Settings</b>. Turn on <b>Launch at Login</b> there so it starts with your Mac.
+      </p>
+    ),
+  },
+];
+
+export function Faq() {
+  return (
+    <section id="faq" className="relative py-20 sm:py-28">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+        <SectionHeading eyebrow="FAQ" title="Questions, answered." />
+        <Accordion
+          type="single"
+          collapsible
+          defaultValue="item-0"
+          className="reveal mt-12 rounded-2xl border border-white/[0.08] bg-white/[0.02] px-5 sm:px-7"
+        >
+          {faqs.map((f, i) => (
+            <AccordionItem key={f.q} value={`item-${i}`} className="border-white/[0.07]">
+              <AccordionTrigger className="py-5 text-base font-medium hover:no-underline">
+                {f.q}
+              </AccordionTrigger>
+              <AccordionContent className="pb-5 text-[15px] leading-relaxed text-muted-foreground [&_b]:font-medium [&_b]:text-foreground">
+                {f.a}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    </section>
+  );
+}

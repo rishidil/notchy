@@ -7,6 +7,7 @@ struct NotificationItem: Equatable, Identifiable {
     let title: String
     let subtitle: String
     let body: String
+    var date = Date()
 
     var appURL: URL? { NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) }
     var appName: String {
@@ -21,6 +22,10 @@ final class NotificationWatcher: ObservableObject {
     @Published private(set) var hasAccess = false
     @Published private(set) var enabled: Bool
     @Published private(set) var mutedApps: Set<String>
+    /// Recent notifications, newest first (for the Notifications tab).
+    @Published private(set) var history: [NotificationItem] = []
+    /// Keep reading the database for the Notifications tab even if previews are off.
+    var historyEnabled = false { didSet { if historyEnabled && !oldValue { poll() } } }
     var onNotification: ((NotificationItem) -> Void)?
 
     private static let dbPath = NSHomeDirectory() + "/Library/Group Containers/group.com.apple.usernoted/db2/db"
@@ -48,6 +53,13 @@ final class NotificationWatcher: ObservableObject {
         UserDefaults.standard.set(Array(mutedApps), forKey: "mutedNotificationApps")
     }
 
+    func clearHistory() { history = [] }
+
+    func applyDemo(_ items: [NotificationItem]) {
+        hasAccess = true
+        history = items
+    }
+
     func unmuteAll() {
         mutedApps = []
         UserDefaults.standard.removeObject(forKey: "mutedNotificationApps")
@@ -60,7 +72,7 @@ final class NotificationWatcher: ObservableObject {
     }
 
     private func poll() {
-        guard enabled else { return }
+        guard (enabled || historyEnabled), !isDemoMode else { return }
         tick += 1
         if !hasAccess && tick % 6 != 1 { return } // back off to ~9s while we lack permission
         let last = lastID
@@ -70,9 +82,17 @@ final class NotificationWatcher: ObservableObject {
             DispatchQueue.main.async {
                 if self.hasAccess != result.ok { self.hasAccess = result.ok }
                 guard result.ok else { return }
-                if self.lastID < 0 { self.lastID = result.maxID; return } // first read: skip history
+                if self.lastID < 0 { // first read: don't pop up old notifications, just list them
+                    self.lastID = result.maxID
+                    self.history = result.items.reversed()
+                    return
+                }
                 self.lastID = max(self.lastID, result.maxID)
-                if let item = result.items.last(where: { !self.mutedApps.contains($0.bundleID) }) {
+                let fresh = result.items.filter { !self.mutedApps.contains($0.bundleID) }
+                if !fresh.isEmpty {
+                    self.history = Array((fresh.reversed() + self.history).prefix(60))
+                }
+                if self.enabled, let item = fresh.last(where: { Date().timeIntervalSince($0.date) < 60 }) {
                     self.onNotification?(item)
                 }
             }
@@ -89,8 +109,9 @@ final class NotificationWatcher: ObservableObject {
             }
             db = handle
         }
+        // First read: the 40 most recent records (for history); afterwards only new ones.
         let sql = last < 0
-            ? "SELECT IFNULL(MAX(rec_id), 0) FROM record"
+            ? "SELECT * FROM (SELECT r.rec_id, a.identifier, r.data FROM record r JOIN app a ON a.app_id = r.app_id ORDER BY r.rec_id DESC LIMIT 40) ORDER BY rec_id"
             : "SELECT r.rec_id, a.identifier, r.data FROM record r JOIN app a ON a.app_id = r.app_id WHERE r.rec_id > ? ORDER BY r.rec_id LIMIT 20"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -100,14 +121,9 @@ final class NotificationWatcher: ObservableObject {
         }
         defer { sqlite3_finalize(stmt) }
 
-        if last < 0 {
-            guard sqlite3_step(stmt) == SQLITE_ROW else { return fail }
-            return (true, [], sqlite3_column_int64(stmt, 0))
-        }
-
-        sqlite3_bind_int64(stmt, 1, last)
+        if last >= 0 { sqlite3_bind_int64(stmt, 1, last) }
         var items: [NotificationItem] = []
-        var maxID = last
+        var maxID = max(last, 0)
         let now = Date().timeIntervalSinceReferenceDate
         while true {
             let rc = sqlite3_step(stmt)
@@ -120,13 +136,15 @@ final class NotificationWatcher: ObservableObject {
             let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, 2)))
             guard let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
                   let req = plist["req"] as? [String: Any] else { continue }
-            if let date = plist["date"] as? Double, now - date > 60 { continue } // stale
+            let date = plist["date"] as? Double ?? now
+            if now - date > 3 * 86400 { continue } // older than 3 days
             let title = req["titl"] as? String ?? ""
             let subtitle = req["subt"] as? String ?? ""
             let body = req["body"] as? String ?? ""
             if title.isEmpty && body.isEmpty { continue }
             if bundle.caseInsensitiveCompare(Bundle.main.bundleIdentifier ?? "") == .orderedSame { continue }
-            items.append(NotificationItem(id: id, bundleID: bundle, title: title, subtitle: subtitle, body: body))
+            items.append(NotificationItem(id: id, bundleID: bundle, title: title, subtitle: subtitle, body: body,
+                                          date: Date(timeIntervalSinceReferenceDate: date)))
         }
         return (true, items, maxID)
     }

@@ -32,6 +32,20 @@ enum Shell {
         p.arguments = args
         try? p.run()
     }
+
+    /// Runs a command synchronously and returns its stdout (call off the main thread).
+    static func output(_ path: String, _ args: [String]) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: path)
+        p.arguments = args
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 extension NSImage {

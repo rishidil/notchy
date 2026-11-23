@@ -4,19 +4,6 @@ import os
 import ServiceManagement
 import SwiftUI
 
-enum NotchTab: String, CaseIterable {
-    case home, calendar, timer, shelf
-
-    var symbol: String {
-        switch self {
-        case .home: "house.fill"
-        case .calendar: "calendar"
-        case .timer: "timer"
-        case .shelf: "tray.full.fill"
-        }
-    }
-}
-
 enum HUDKind: Equatable { case volume, brightness }
 
 /// Short-lived things that pop out of the notch.
@@ -25,6 +12,8 @@ enum Transient: Equatable {
     case hud(HUDKind)
     case notification(NotificationItem)
     case timerDone
+    case device(BluetoothService.Device)
+    case toast(symbol: String, text: String, tint: Color)
 }
 
 /// What the collapsed island is currently showing.
@@ -37,14 +26,19 @@ enum LiveActivity: Equatable {
     case timerDone
     case hud(HUDKind)
     case notification(NotificationItem)
+    case device(BluetoothService.Device)
+    case toast(symbol: String, text: String, tint: Color)
 }
 
 final class NotchViewModel: ObservableObject {
     @Published private(set) var isExpanded = false
     @Published var notchSize = CGSize(width: 185, height: 32)
-    @Published var tab: NotchTab = .home
+    @Published var tab: NotchTab = .home { didSet { if tab != oldValue { tabDidChange() } } }
     @Published private(set) var transient: Transient?
     @Published private(set) var isDropTargeted = false
+    @Published private(set) var dropHover: DropAction?
+    /// Forces the drop-actions view on screen (used for screenshots).
+    @Published var dropPreview = false
     @Published private(set) var replaceSystemHUD = UserDefaults.standard.bool(forKey: "replaceSystemHUD")
     @Published private(set) var showIdleBadge = UserDefaults.standard.object(forKey: "showIdleBadge") as? Bool ?? true
     /// False on Macs/displays without a camera notch: the island then hides until it has something to show.
@@ -52,6 +46,11 @@ final class NotchViewModel: ObservableObject {
     @Published private(set) var showMenuBarActivities = UserDefaults.standard.object(forKey: "showMenuBarActivities") as? Bool ?? true
     /// Whether volume/brightness keys are currently being intercepted (false if Accessibility is missing).
     @Published private(set) var keyTapActive = false
+    @Published private(set) var lyricsInNotch = UserDefaults.standard.bool(forKey: "lyricsInNotch")
+    @Published private(set) var dropActionsEnabled = UserDefaults.standard.object(forKey: "dropActions") as? Bool ?? true
+    /// All tabs in the user's order, and which of them are switched on.
+    @Published private(set) var tabOrder: [NotchTab]
+    @Published private(set) var enabledTabs: Set<NotchTab>
 
     let music = MusicController()
     let battery = BatteryMonitor()
@@ -63,6 +62,12 @@ final class NotchViewModel: ObservableObject {
     let timer = TimerService()
     let notifications = NotificationWatcher()
     let files = FileShelf()
+    let weather = WeatherService()
+    let todos = TodoStore()
+    let lyrics = LyricsService()
+    let bluetooth = BluetoothService()
+    let system = SystemMonitor()
+    let screenTime = ScreenTimeTracker()
     private let keyTap = MediaKeyTap()
 
     static let spring = Animation.spring(response: 0.42, dampingFraction: 0.8)
@@ -75,22 +80,64 @@ final class NotchViewModel: ObservableObject {
     private var trustTimer: Timer?
     private var isHovering = false
     private var menuOpen = false
+    /// Frames of the drop-action tiles, in the island's coordinate space.
+    var dropTileFrames: [DropAction: CGRect] = [:]
 
     init() {
+        let defaults = UserDefaults.standard
+        let savedOrder = (defaults.stringArray(forKey: "tabOrder") ?? []).compactMap(NotchTab.init(rawValue:))
+        tabOrder = savedOrder + NotchTab.allCases.filter { !savedOrder.contains($0) }
+        if let saved = defaults.stringArray(forKey: "enabledTabs") {
+            enabledTabs = Set(saved.compactMap(NotchTab.init(rawValue:)))
+        } else {
+            enabledTabs = Set(NotchTab.defaultTabs)
+        }
+        if enabledTabs.isEmpty { enabledTabs = [.home] }
+        tab = tabs.first ?? .home
+
         // Re-render whenever any service changes.
-        Publishers.MergeMany(music.objectWillChange, battery.objectWillChange, calendar.objectWillChange,
-                             toggles.objectWillChange, shelf.objectWillChange, volume.objectWillChange,
-                             brightness.objectWillChange, timer.objectWillChange, notifications.objectWillChange,
-                             files.objectWillChange)
+        let services: [AnyPublisher<Void, Never>] = [
+            music.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            battery.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            calendar.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            toggles.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            shelf.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            volume.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            brightness.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            timer.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            notifications.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            files.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            weather.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            todos.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            lyrics.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            bluetooth.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            system.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            screenTime.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+        ]
+        Publishers.MergeMany(services)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &bag)
+
+        // Look up lyrics when the track changes.
+        Publishers.CombineLatest3(music.$title, music.$artist, music.$duration)
+            .debounce(for: .milliseconds(400), scheduler: DispatchQueue.main)
+            .sink { [weak self] title, artist, duration in
+                guard let self else { return }
+                self.lyrics.update(title: title, artist: artist, album: self.music.album, duration: duration)
+            }
             .store(in: &bag)
 
         battery.onPowerSourceChange = { [weak self] in self?.show(.battery, for: 3) }
         volume.onChange = { [weak self] in self?.show(.hud(.volume), for: 1.6) }
         brightness.onChange = { [weak self] in self?.show(.hud(.brightness), for: 1.6) }
         timer.onFinish = { [weak self] in self?.show(.timerDone, for: 10) }
+        timer.onPhaseChange = { [weak self] phase in
+            let text = phase == .focus ? "Break's over — time to focus" : "Nice work! Take a \(phase == .longBreak ? "long " : "")break"
+            self?.show(.toast(symbol: phase.symbol, text: text, tint: phase.color), for: 4)
+        }
         notifications.onNotification = { [weak self] item in self?.show(.notification(item), for: 5) }
+        bluetooth.onConnect = { [weak self] device in self?.show(.device(device), for: 3.5) }
         keyTap.handler = { [weak self] key, fine, isDown, isRepeat in
             self?.handleMediaKey(key, fine: fine, isDown: isDown, isRepeat: isRepeat) ?? false
         }
@@ -103,6 +150,88 @@ final class NotchViewModel: ObservableObject {
         observers.append(nc.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { [weak self] _ in
             self?.menuOpen = false
         })
+        observers.append(nc.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.screenTime.saveNow()
+        })
+
+        if isDemoMode { DemoData.apply(to: self) } else { applyFeatureState() }
+    }
+
+    // MARK: Tabs & features
+
+    /// The tabs shown in the header, in order.
+    var tabs: [NotchTab] { tabOrder.filter { enabledTabs.contains($0) } }
+
+    func isTabEnabled(_ t: NotchTab) -> Bool { enabledTabs.contains(t) }
+
+    func setTab(_ t: NotchTab, enabled: Bool) {
+        if enabled { enabledTabs.insert(t) } else if enabledTabs.count > 1 { enabledTabs.remove(t) }
+        saveTabs()
+        if !enabledTabs.contains(tab) { tab = tabs.first ?? .home }
+        applyFeatureState()
+    }
+
+    func moveTabs(from source: IndexSet, to destination: Int) {
+        tabOrder.move(fromOffsets: source, toOffset: destination)
+        saveTabs()
+    }
+
+    func setDemoTabs(_ t: [NotchTab]) {
+        tabOrder = t + NotchTab.allCases.filter { !t.contains($0) }
+        enabledTabs = Set(t)
+    }
+
+    func demoDrop(hover: DropAction) {
+        dropPreview = true
+        dropHover = hover
+        expand()
+    }
+
+    func resetTabs() {
+        tabOrder = NotchTab.allCases
+        enabledTabs = Set(NotchTab.defaultTabs)
+        saveTabs()
+        tab = tabs.first ?? .home
+        applyFeatureState()
+    }
+
+    private func saveTabs() {
+        guard !isDemoMode else { return }
+        UserDefaults.standard.set(tabOrder.map(\.rawValue), forKey: "tabOrder")
+        UserDefaults.standard.set(enabledTabs.map(\.rawValue), forKey: "enabledTabs")
+    }
+
+    /// Starts only the services the user's tabs need, so nothing asks for permission or uses the network unless it's wanted.
+    func applyFeatureState() {
+        guard !isDemoMode else { return }
+        isTabEnabled(.weather) ? weather.start() : weather.stop()
+        isTabEnabled(.bluetooth) ? bluetooth.start() : bluetooth.stop()
+        isTabEnabled(.screenTime) ? screenTime.start() : screenTime.stop()
+        lyrics.isEnabled = isTabEnabled(.lyrics) || lyricsInNotch
+        notifications.historyEnabled = isTabEnabled(.notifications)
+        updateSystemMonitor()
+    }
+
+    private func tabDidChange() {
+        updateSystemMonitor()
+        guard isExpanded else { return }
+        if tab == .weather { weather.refreshIfStale() }
+        if tab == .bluetooth { bluetooth.refreshDetails() }
+    }
+
+    private func updateSystemMonitor() {
+        if isExpanded && tab == .system { system.start() } else { system.stop() }
+    }
+
+    func setLyricsInNotch(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "lyricsInNotch")
+        withAnimation(Self.spring) { lyricsInNotch = on }
+        applyFeatureState()
+    }
+
+    func setDropActions(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "dropActions")
+        dropActionsEnabled = on
     }
 
     // MARK: Activity & geometry
@@ -113,6 +242,8 @@ final class NotchViewModel: ObservableObject {
         case .hud(let kind): return .hud(kind)
         case .battery: return .battery(level: battery.level, onAC: battery.onAC)
         case .timerDone: return .timerDone
+        case .device(let d): return .device(d)
+        case .toast(let s, let t, let c): return .toast(symbol: s, text: t, tint: c)
         case nil: break
         }
         // Without a notch, persistent activities sit in the menu bar; the user can turn that off.
@@ -125,6 +256,9 @@ final class NotchViewModel: ObservableObject {
         }
         return .none
     }
+
+    /// Show the current lyric line under the notch while music plays.
+    var showsLyricLine: Bool { lyricsInNotch && activity == .music && lyrics.state == .synced }
 
     var expandedSize: CGSize { CGSize(width: 640, height: notchSize.height + 162) }
     var sideWidth: CGFloat { notchSize.height + 14 }
@@ -141,15 +275,16 @@ final class NotchViewModel: ObservableObject {
         let n = notchSize
         let wide = n.width + 2 * sideWidth
         switch activity {
-        case .none: return showsIdleBadgeSpace ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n
+        case .none: return hasNotch && showIdleBadge ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n
         case .hud: return CGSize(width: hasNotch ? wide : max(wide, 240), height: n.height + 26)
         case .notification: return CGSize(width: max(wide, 420), height: n.height + 62)
         case .timerDone: return CGSize(width: max(wide, 360), height: n.height + 44)
+        case .toast: return CGSize(width: max(wide, 360), height: n.height + 34)
+        case .device: return CGSize(width: max(wide, 300), height: n.height + 30)
+        case .music where showsLyricLine: return CGSize(width: max(wide, 380), height: n.height + 26)
         default: return CGSize(width: wide, height: n.height)
         }
     }
-
-    private var showsIdleBadgeSpace: Bool { hasNotch && showIdleBadge }
 
     var bodySize: CGSize { isExpanded ? expandedSize : collapsedSize }
     var topRadius: CGFloat { isExpanded ? 14 : 6 }
@@ -192,7 +327,7 @@ final class NotchViewModel: ObservableObject {
             guard let self else { return }
             if hovering {
                 if !self.transientIsInteractive { self.expand() }
-            } else if self.menuOpen || NSEvent.pressedMouseButtons & 1 != 0 {
+            } else if self.menuOpen || NSEvent.pressedMouseButtons & 1 != 0 || self.dropPreview {
                 self.scheduleHover(false) // a menu is open or a drag is in progress: check again shortly
             } else {
                 self.collapse()
@@ -208,14 +343,17 @@ final class NotchViewModel: ObservableObject {
         guard !isExpanded else { return }
         withAnimation(Self.spring) { isExpanded = true }
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        guard !isDemoMode else { return }
         music.refresh()
         calendar.refresh()
         toggles.refreshKeepAwake()
+        tabDidChange()
     }
 
     func collapse() {
         guard isExpanded else { return }
         withAnimation(Self.spring) { isExpanded = false }
+        updateSystemMonitor()
     }
 
     func handleTap() {
@@ -264,16 +402,67 @@ final class NotchViewModel: ObservableObject {
 
     // MARK: File drag & drop
 
+    /// Whether dropping files on the notch does anything with the current settings.
+    var acceptsDrops: Bool { dropActionsEnabled || isTabEnabled(.shelf) }
+    var showsDropActions: Bool { dropPreview || (isDropTargeted && dropActionsEnabled) }
+
     /// Called while a file drag hovers over the notch.
     func beginFileDrag() {
-        if tab != .shelf { tab = .shelf }
+        if !dropActionsEnabled && isTabEnabled(.shelf) && tab != .shelf { tab = .shelf }
     }
 
     func dropTargetChanged(_ targeted: Bool) {
         isDropTargeted = targeted
+        if !targeted { dropHover = nil }
         if targeted {
-            tab = .shelf
+            if !dropActionsEnabled && isTabEnabled(.shelf) { tab = .shelf }
             expand()
+        }
+    }
+
+    var availableDropActions: [DropAction] {
+        DropAction.allCases.filter { $0 != .shelf || isTabEnabled(.shelf) }
+    }
+
+    func updateDropHover(_ location: CGPoint) {
+        let hit = dropTileFrames.first { $0.value.insetBy(dx: -4, dy: -4).contains(location) }?.key
+        if hit != dropHover { dropHover = hit }
+    }
+
+    func performDrop(_ providers: [NSItemProvider], at location: CGPoint) -> Bool {
+        updateDropHover(location)
+        let action: DropAction? = dropActionsEnabled ? dropHover : (isTabEnabled(.shelf) ? .shelf : nil)
+        // Dropped on the island but not on a tile: keep it on the shelf if there is one.
+        guard let chosen = action ?? (isTabEnabled(.shelf) ? .shelf : nil) else { return false }
+        FileShelf.loadURLs(providers) { [weak self] urls in
+            guard let self, !urls.isEmpty else { return }
+            self.run(chosen, on: urls)
+        }
+        isDropTargeted = false
+        dropHover = nil
+        return true
+    }
+
+    private func run(_ action: DropAction, on urls: [URL]) {
+        switch action {
+        case .shelf:
+            files.add(urls)
+            tab = .shelf
+        case .airDrop:
+            NSApp.activate(ignoringOtherApps: true)
+            NSSharingService(named: .sendViaAirDrop)?.perform(withItems: urls)
+        case .compress:
+            FileShelf.compress(urls)
+            collapse()
+            show(.toast(symbol: "doc.zipper", text: "Compressing \(urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) items")…", tint: .orange), for: 2.5)
+        case .copyPath:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
+            collapse()
+            show(.toast(symbol: "doc.on.doc.fill", text: urls.count == 1 ? "Path copied" : "\(urls.count) paths copied", tint: .mint), for: 2)
+        case .mail:
+            NSApp.activate(ignoringOtherApps: true)
+            NSSharingService(named: .composeEmail)?.perform(withItems: urls)
         }
     }
 
@@ -361,5 +550,37 @@ final class NotchViewModel: ObservableObject {
             NSLog("[NotchIsland] Launch at login failed: %@", error.localizedDescription)
         }
         objectWillChange.send()
+    }
+
+    func openSettings(welcome: Bool = false) {
+        collapse()
+        SettingsWindowController.shared.show(vm: self, welcome: welcome)
+    }
+
+    // MARK: URL commands (notchy://…), handy for Shortcuts / Raycast
+
+    func handle(_ url: URL) {
+        guard url.scheme == "notchy" || url.scheme == "notchisland" else { return }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        func q(_ name: String) -> String? { items.first { $0.name == name }?.value }
+        switch url.host {
+        case "open":
+            dropPreview = false
+            if let t = q("tab").flatMap(NotchTab.init(rawValue:)) { tab = t }
+            expand()
+        case "collapse":
+            dropPreview = false
+            collapse()
+        case "settings":
+            openSettings(welcome: q("welcome") == "1")
+        case "timer":
+            if let m = q("minutes").flatMap(Double.init) { timer.start(seconds: m * 60) }
+        case "pomodoro":
+            timer.startPomodoro()
+        case "demo":
+            DemoData.showState(q("state") ?? "", on: self)
+        default:
+            break
+        }
     }
 }

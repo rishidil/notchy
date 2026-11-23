@@ -1,4 +1,8 @@
-# Notch Island
+# Notchy
+
+**[Website](https://rishidil.github.io/notchy/) · [Download](https://github.com/rishidil/notchy/releases/latest/download/Notchy.dmg)**
+
+![Notchy](website/public/screenshots/home.jpg)
 
 A Dynamic Island for your MacBook's notch. Native SwiftUI + AppKit, no dependencies, ~0% CPU at idle.
 
@@ -13,21 +17,32 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 | 🔊 **Volume & brightness HUD** | Bars pop out of the notch. Optionally replaces the system HUD entirely |
 | 🔔 **Notification previews** | New notifications appear in the notch (right-click to mute an app) |
 | 📅 **Calendar** | Next event + today/tomorrow agenda, one-click **Join** for Meet/Zoom/Teams links, works with **Google Calendar** |
-| ⏱ **Timer** | Presets or custom; counts down in the notch and chimes when done |
-| 📥 **File shelf** | Drag files onto the notch to hold them, drag them out anywhere later, or AirDrop them |
+| ⏱ **Timer & Pomodoro** | Presets, custom timers and focus/break cycles that count down in the notch |
+| 🌤 **Weather** | Current conditions, hourly and daily forecast ([Open-Meteo](https://open-meteo.com), no account) |
+| ✅ **To-Do** | A quick task list in the notch |
+| 🎤 **Live lyrics** | Synced lyrics for Spotify & Apple Music ([LRCLIB](https://lrclib.net)), optionally under the notch |
+| 🎧 **Bluetooth** | Connected devices with battery levels (AirPods, Magic Keyboard/Mouse…), connect/disconnect, pop-up on connect |
+| 📊 **System monitor** | CPU, memory, network and disk with live graphs |
+| ⏳ **Screen Time** | Today's usage and top apps, tracked privately on your Mac |
+| 🔔 **Notification history** | Recent notifications in their own tab |
+| 🪄 **Drop actions** | Drag files onto the notch: keep on shelf, AirDrop, compress, copy path or email |
+| 📥 **File shelf** | Hold dropped files, drag them out anywhere later, or AirDrop them |
 | ⚡ **Quick toggles** | Dark Mode, Keep Awake (uses [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) if installed; right-click for durations), Mute, Screenshot, Sleep Display |
 | 🚀 **App shelf** | Your favorite apps one click away (`+` to add, right-click to remove) |
 | 🔋 **Battery** | Charging animation when you plug in, battery level in the header |
+
+**Make it yours:** a Settings window opens on first launch so you can choose which tabs your notch shows and in what
+order, toggle features, and grant only the permissions you need. Reopen it from ⚙︎ → **Settings…**.
 
 ## Download (no Terminal needed)
 
 Works on any Mac with Apple silicon (M1 or newer) running macOS 14 Sonoma or later, with or without a notch.
 
-1. **[Download Notch-Island.dmg](https://github.com/rishidil/notch-island/releases/latest/download/Notch-Island.dmg)**
-2. Open the downloaded file and drag **Notch Island** onto the **Applications** folder
-3. Open **Applications** and double-click **Notch Island**. macOS will say it *"could not verify"* the app; click **Done**
+1. **[Download Notchy.dmg](https://github.com/rishidil/notchy/releases/latest/download/Notchy.dmg)**
+2. Open the downloaded file and drag **Notchy** onto the **Applications** folder
+3. Open **Applications** and double-click **Notchy**. macOS will say it *"could not verify"* the app; click **Done**
    (this happens because the app isn't sold through Apple, not because anything is wrong)
-4. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to *"Notch Island was blocked"*.
+4. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to *"Notchy was blocked"*.
    Confirm with your password or Touch ID
 
 That's it. The island now lives in your notch. Hover over it to open it (no notch? push the cursor to the top center
@@ -41,8 +56,8 @@ Turn on **Launch at Login** there so it starts with your Mac.
 Requires an Apple Silicon Mac with macOS 14+ and the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone https://github.com/rishidil/notch-island.git
-cd notch-island
+git clone https://github.com/rishidil/notchy.git
+cd notchy
 ./build.sh install     # builds, copies to /Applications and launches
 ```
 
@@ -56,13 +71,15 @@ Each feature asks only when needed:
 | Feature | Permission | How |
 | --- | --- | --- |
 | Calendar | Calendars | Prompted on first launch |
+| Weather | Location (or pick a city in Settings) | Prompted when the Weather tab is on |
+| Bluetooth tab | Bluetooth | Prompted when the Bluetooth tab is on |
 | Music controls, Dark Mode, Amphetamine | Automation (Spotify / Music / System Events / Amphetamine) | Prompted on first use |
-| Notification previews | **Full Disk Access** | ⚙︎ → *Enable Notification Previews…*, then add **Notch Island** with `+` |
+| Notification previews & history | **Full Disk Access** | ⚙︎ → *Enable Notification Previews…*, then add **Notchy** with `+` |
 | Replace system volume/brightness HUD | **Accessibility** | ⚙︎ → *Replace System Volume & Brightness HUD*, then allow it |
 
 ### Connect Google Calendar
 
-Notch Island reads calendars through macOS, so Google sync (including recurring events and Meet links) works by adding
+Notchy reads calendars through macOS, so Google sync (including recurring events and Meet links) works by adding
 your Google account to the Mac:
 
 1. ⚙︎ → **Add Google / Other Calendar Account…** (or System Settings → Internet Accounts → Add Account → Google)
@@ -113,7 +130,15 @@ After the first build signed this way, grant permissions one last time; they'll 
 | `HUDServices.swift` | Volume (CoreAudio), brightness (DisplayServices), media-key event tap |
 | `NotificationWatcher.swift` | Reads new entries from Notification Center's local database (read-only) |
 | `SystemServices.swift` | Battery (IOKit), Calendar (EventKit), quick toggles, app shelf |
-| `TimerService.swift`, `FileShelf.swift` | Timer and file shelf |
+| `TimerService.swift`, `FileShelf.swift` | Timer/Pomodoro, file shelf and drop-action helpers |
+| `FeatureTabs.swift` | Weather, To-Do, Lyrics, Bluetooth, System, Screen Time, Notifications tabs and drop actions |
+| `WeatherService.swift`, `LyricsService.swift`, `BluetoothService.swift`, `SystemMonitor.swift`, `ScreenTimeTracker.swift`, `TodoStore.swift` | The services behind those tabs |
+| `SettingsView.swift` | Settings / first-launch window |
+| `DemoData.swift` | Sample data for screenshots (`--demo`; nothing saved) |
+| `website/` | The Next.js + shadcn/ui website (deployed to GitHub Pages) |
+
+Automation: `notchy://open?tab=weather`, `notchy://timer?minutes=10`, `notchy://pomodoro`,
+`notchy://settings` (handy for Shortcuts or Raycast).
 
 ### Limitations
 
@@ -123,4 +148,6 @@ After the first build signed this way, grant permissions one last time; they'll 
 - **Macs without a notch** (M1 Air, 13" Pro, iMac, external displays): the island stays invisible until something
   happens (music, timer, volume…), then appears as a slim pill in the menu bar. Push the cursor to the top center of
   the screen to open it. Turn off *Show Music & Timer in Menu Bar* in ⚙︎ to show only pop-ups.
-- **Privacy:** notification content never leaves your Mac.
+- **Screen Time** is tallied by Notchy itself from the moment you turn the tab on (macOS has no public Screen Time API).
+- **Privacy:** notification content, screen time and your files never leave your Mac. Weather requests send only
+  approximate coordinates to Open-Meteo; lyrics lookups send the song title and artist to LRCLIB.

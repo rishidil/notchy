@@ -100,6 +100,7 @@ final class CalendarService: ObservableObject {
             self?.refresh()
         }
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+        if isDemoMode { return }
         if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
             requestAccess()
         } else {
@@ -129,7 +130,16 @@ final class CalendarService: ObservableObject {
         if denied != d { denied = d }
     }
 
+    func applyDemo(_ events: [EventInfo]) {
+        authorized = true
+        denied = false
+        calendars = [CalendarInfo(id: "demo", title: "Work", source: "Google", color: .systemBlue)]
+        agenda = events
+        nextEvent = events.first
+    }
+
     func refresh() {
+        guard !isDemoMode else { return }
         updateStatus()
         guard authorized else { nextEvent = nil; agenda = []; return }
 
@@ -280,7 +290,7 @@ final class SystemToggles: ObservableObject {
         } else {
             let r = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
                                                 IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                                                "Notch Island: Keep Awake" as CFString, &assertionID)
+                                                "Notchy: Keep Awake" as CFString, &assertionID)
             keepAwake = r == kIOReturnSuccess
         }
     }
