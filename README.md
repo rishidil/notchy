@@ -2,7 +2,7 @@
 
 **[Website](https://rishidil.github.io/notchy/) · [Download](https://github.com/rishidil/notchy/releases/latest/download/Notchy.dmg)**
 
-![Notchy](website/public/screenshots/home.jpg)
+![Notchy](website/public/screenshots/home.webp)
 
 A Dynamic Island for your MacBook's notch. Native SwiftUI + AppKit, no dependencies, ~0% CPU at idle.
 

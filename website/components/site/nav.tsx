@@ -17,10 +17,12 @@ export function Nav() {
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
         <a href="#top" className="flex items-center gap-2.5 font-semibold tracking-tight">
           <Image
-            src={asset("/icon-128.png")}
+            src={asset("/icon-96.png")}
             alt=""
             width={32}
             height={32}
+            loading="eager"
+            fetchPriority="high"
             className="size-8 drop-shadow-[0_4px_12px_rgb(191_89_255/0.35)]"
           />
           <span>{SITE.name}</span>
@@ -58,7 +60,7 @@ export function Nav() {
               <GitHubIcon className="size-4" />
             </a>
           </Button>
-          <Button asChild size="sm" className="h-8 rounded-full px-3.5 font-medium">
+          <Button asChild size="sm" className="h-8 rounded-full px-3.5 font-medium pointer-coarse:hidden">
             <a href={SITE.downloadUrl}>
               <Download data-icon="inline-start" />
               Download

@@ -1,3 +1,4 @@
+import { MacOnlyNotice } from "@/components/site/mac-only";
 import { Download, Laptop, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,13 +83,14 @@ export function Install() {
           <Button
             asChild
             size="lg"
-            className="cta-glow h-12 rounded-full px-7 text-base font-semibold"
+            className="cta-glow h-12 rounded-full px-7 text-base font-semibold pointer-coarse:hidden"
           >
             <a href={SITE.downloadUrl}>
               <Download className="size-5" />
               Download for Mac — Free
             </a>
           </Button>
+          <MacOnlyNotice className="hidden pointer-coarse:flex" />
           <p className="text-xs text-muted-foreground/80">
             {SITE.requirements} ·{" "}
             <a

@@ -10,7 +10,7 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
-            <Image src={asset("/icon-128.png")} alt="" width={36} height={36} className="size-9" />
+            <Image src={asset("/icon-96.png")} alt="" width={36} height={36} className="size-9" />
             <div>
               <div className="font-semibold tracking-tight">{SITE.name}</div>
               <div className="text-sm text-muted-foreground">A Dynamic Island for your MacBook.</div>

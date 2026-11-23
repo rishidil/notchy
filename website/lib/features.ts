@@ -38,7 +38,7 @@ export const FEATURES: Feature[] = [
   {
     id: "home",
     name: "Home",
-    screenshot: "home.jpg",
+    screenshot: "home.webp",
     icon: House,
     color: pink,
     tagline: "Everything you reach for, one hover away.",
@@ -54,7 +54,7 @@ export const FEATURES: Feature[] = [
   {
     id: "music-live",
     name: "Live Activity",
-    screenshot: "music-live.jpg",
+    screenshot: "music-live.webp",
     icon: AudioLines,
     color: violet,
     tagline: "Now playing, even when it's closed.",
@@ -69,7 +69,7 @@ export const FEATURES: Feature[] = [
   {
     id: "calendar",
     name: "Calendar",
-    screenshot: "calendar.jpg",
+    screenshot: "calendar.webp",
     icon: CalendarDays,
     color: indigo,
     tagline: "Never be late to a call again.",
@@ -84,7 +84,7 @@ export const FEATURES: Feature[] = [
   {
     id: "timer",
     name: "Timer & Pomodoro",
-    screenshot: "timer.jpg",
+    screenshot: "timer.webp",
     icon: Timer,
     color: orange,
     tagline: "Focus, with the clock in plain sight.",
@@ -99,7 +99,7 @@ export const FEATURES: Feature[] = [
   {
     id: "weather",
     name: "Weather",
-    screenshot: "weather.jpg",
+    screenshot: "weather.webp",
     icon: CloudSun,
     color: cyan,
     tagline: "Know before you go.",
@@ -114,7 +114,7 @@ export const FEATURES: Feature[] = [
   {
     id: "todo",
     name: "To-Do",
-    screenshot: "todo.jpg",
+    screenshot: "todo.webp",
     icon: ListTodo,
     color: pink,
     tagline: "Capture it before it slips away.",
@@ -125,7 +125,7 @@ export const FEATURES: Feature[] = [
   {
     id: "lyrics",
     name: "Live Lyrics",
-    screenshot: "lyrics.jpg",
+    screenshot: "lyrics.webp",
     icon: MicVocal,
     color: violet,
     tagline: "Sing along, line by line.",
@@ -136,7 +136,7 @@ export const FEATURES: Feature[] = [
   {
     id: "bluetooth",
     name: "Bluetooth",
-    screenshot: "bluetooth.jpg",
+    screenshot: "bluetooth.webp",
     icon: Bluetooth,
     color: indigo,
     tagline: "Your devices and their batteries.",
@@ -147,7 +147,7 @@ export const FEATURES: Feature[] = [
   {
     id: "system",
     name: "System Monitor",
-    screenshot: "system.jpg",
+    screenshot: "system.webp",
     icon: Cpu,
     color: cyan,
     tagline: "Your Mac's vitals at a glance.",
@@ -157,7 +157,7 @@ export const FEATURES: Feature[] = [
   {
     id: "screentime",
     name: "Screen Time",
-    screenshot: "screentime.jpg",
+    screenshot: "screentime.webp",
     icon: Hourglass,
     color: orange,
     tagline: "Where did the day go?",
@@ -168,7 +168,7 @@ export const FEATURES: Feature[] = [
   {
     id: "notifications",
     name: "Notifications",
-    screenshot: "notifications.jpg",
+    screenshot: "notifications.webp",
     icon: Bell,
     color: pink,
     tagline: "Previews that pop out of the notch.",
@@ -179,7 +179,7 @@ export const FEATURES: Feature[] = [
   {
     id: "drop",
     name: "Drop Actions",
-    screenshot: "drop.jpg",
+    screenshot: "drop.webp",
     icon: Inbox,
     color: violet,
     tagline: "Drag. Drop. Done.",
@@ -190,7 +190,7 @@ export const FEATURES: Feature[] = [
   {
     id: "hud",
     name: "Volume & Brightness",
-    screenshot: "hud.jpg",
+    screenshot: "hud.webp",
     icon: SunMedium,
     color: cyan,
     tagline: "A HUD that fits the hardware.",

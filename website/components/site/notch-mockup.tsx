@@ -38,16 +38,16 @@ export function NotchMockup() {
       <div className="relative aspect-[16/10] w-full overflow-hidden rounded-t-[22px] border border-b-0 border-white/10 bg-[#0a0912] sm:aspect-[16/7] sm:rounded-t-[34px]">
         {/* Wallpaper */}
         <div className="nm-aurora absolute -inset-[15%]">
-          <div className="absolute left-[8%] top-[20%] h-[70%] w-[45%] rounded-full bg-[#5c6bff] opacity-50 blur-[90px]" />
-          <div className="absolute right-[6%] top-[10%] h-[60%] w-[40%] rounded-full bg-[#bf59ff] opacity-45 blur-[90px]" />
-          <div className="absolute bottom-[0%] left-[35%] h-[50%] w-[35%] rounded-full bg-[#ff619e] opacity-35 blur-[100px]" />
-          <div className="absolute bottom-[10%] right-[18%] h-[35%] w-[25%] rounded-full bg-[#ffa84d] opacity-25 blur-[90px]" />
-          <div className="absolute left-[0%] bottom-[5%] h-[35%] w-[25%] rounded-full bg-[#59d9ff] opacity-25 blur-[90px]" />
+          <div className="absolute left-[8%] top-[20%] h-[70%] w-[45%] rounded-full bg-[radial-gradient(closest-side,rgb(92_107_255/0.50),transparent)]" />
+          <div className="absolute right-[6%] top-[10%] h-[60%] w-[40%] rounded-full bg-[radial-gradient(closest-side,rgb(191_89_255/0.45),transparent)]" />
+          <div className="absolute bottom-[0%] left-[35%] h-[50%] w-[35%] rounded-full bg-[radial-gradient(closest-side,rgb(255_97_158/0.35),transparent)]" />
+          <div className="absolute bottom-[10%] right-[18%] h-[35%] w-[25%] rounded-full bg-[radial-gradient(closest-side,rgb(255_168_77/0.25),transparent)]" />
+          <div className="absolute left-[0%] bottom-[5%] h-[35%] w-[25%] rounded-full bg-[radial-gradient(closest-side,rgb(89_217_255/0.25),transparent)]" />
         </div>
         <div className="bg-grid absolute inset-0 opacity-40 [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
 
         {/* Menu bar */}
-        <div className="absolute inset-x-0 top-0 flex h-[var(--nh)] items-center justify-between bg-black/25 px-3 text-[10px] font-medium text-white/85 backdrop-blur-md sm:px-5 sm:text-[13px]">
+        <div className="absolute inset-x-0 top-0 flex h-[var(--nh)] items-center justify-between bg-black/40 px-3 text-[10px] font-medium text-white/85 sm:px-5 sm:text-[13px]">
           <div className="flex items-center gap-3 sm:gap-5">
             <span className="size-2.5 rounded-full bg-white/85 sm:size-3" />
             <span className="font-semibold">Finder</span>

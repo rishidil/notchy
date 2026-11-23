@@ -1,3 +1,4 @@
+import { MacOnlyNotice } from "@/components/site/mac-only";
 import { ArrowRight, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export function Hero() {
         </a>
 
         <h1
-          className="rise mt-6 max-w-4xl text-balance text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-7xl"
+          className="rise-move mt-6 max-w-4xl text-balance text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-7xl"
           style={{ animationDelay: "80ms" }}
         >
           Your notch, <span className="text-brand">brought to life.</span>
@@ -54,7 +55,7 @@ export function Hero() {
           <Button
             asChild
             size="lg"
-            className="cta-glow h-12 w-full rounded-full px-7 text-base font-semibold sm:w-auto"
+            className="cta-glow h-12 w-full rounded-full px-7 text-base font-semibold pointer-coarse:hidden sm:w-auto"
           >
             <a href={SITE.downloadUrl}>
               <Download className="size-5" />
@@ -73,6 +74,7 @@ export function Hero() {
             </a>
           </Button>
         </div>
+        <MacOnlyNotice className="rise mt-6 hidden pointer-coarse:flex" />
 
         <p
           className="rise mt-4 text-xs text-muted-foreground/80"
