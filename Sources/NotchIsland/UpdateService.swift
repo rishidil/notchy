@@ -46,7 +46,7 @@ final class UpdateService: ObservableObject {
         timer?.invalidate()
         timer = nil
         guard autoCheck else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: 12 * 3600, repeats: true) { [weak self] _ in self?.check(userInitiated: false) }
+        timer = Timer.every(12 * 3600) { [weak self] _ in self?.check(userInitiated: false) }
     }
 
     // MARK: Check

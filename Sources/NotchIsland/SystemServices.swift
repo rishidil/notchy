@@ -100,7 +100,7 @@ final class CalendarService: ObservableObject {
         observer = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             self?.refresh()
         }
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+        timer = Timer.every(30) { [weak self] _ in self?.refresh() }
         if isDemoMode { return }
         if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
             requestAccess()
@@ -239,7 +239,7 @@ final class SystemToggles: ObservableObject {
             if app?.bundleIdentifier == Self.amphetamineID { self?.keepAwake = false }
         })
         // Pick up sessions started/ended from Amphetamine's own menu.
-        keepAwakeTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        keepAwakeTimer = Timer.every(60) { [weak self] _ in
             self?.refreshKeepAwake()
         }
         refreshKeepAwake()

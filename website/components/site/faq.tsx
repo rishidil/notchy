@@ -46,7 +46,9 @@ const faqs: { q: string; a: React.ReactNode }[] = [
       <p>
         Yes — on an M1 MacBook Air, 13&Prime; MacBook Pro, iMac or external display, the island stays
         hidden until something happens (music, a timer, volume…), then appears as a slim pill at the
-        top of the screen. Push your cursor to the top center to open it.
+        top of the screen. Push your cursor to the top center to open it. Prefer something to click? Turn
+        on <strong>Always show a small Notchy logo</strong> in Settings → Features for a tiny logo at the
+        top of the screen.
       </p>
     ),
   },

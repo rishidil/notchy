@@ -58,7 +58,7 @@ final class MusicController: ObservableObject {
             self.refreshAll()
         })
         // Light periodic resync to correct position drift while playing (state changes arrive via notifications).
-        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+        timer = Timer.every(20) { [weak self] _ in
             guard let self, self.isPlaying else { return }
             self.refresh()
         }
@@ -110,13 +110,13 @@ final class MusicController: ObservableObject {
 
     // MARK: State
 
-    func applyDemo(title: String, artist: String, album: String, duration: Double, position: Double, artwork: NSImage?) {
+    func applyDemo(title: String, artist: String, album: String, duration: Double, position: Double, artwork: NSImage?, playing: Bool = true) {
         player = .spotify
         self.title = title
         self.artist = artist
         self.album = album
         self.duration = duration
-        isPlaying = true
+        isPlaying = playing
         positionAnchor = position
         anchorDate = Date()
         if let artwork { setArtwork(artwork) }

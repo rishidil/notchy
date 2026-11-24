@@ -109,7 +109,7 @@ final class BrightnessController: ObservableObject {
         resolveDisplay()
         level = read() ?? 0
         // There's no public change notification, so poll cheaply (~100µs per read).
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.poll() }
+        setPollInterval(0.5)
     }
 
     private func resolveDisplay() {
@@ -126,6 +126,13 @@ final class BrightnessController: ObservableObject {
     }
 
     private var history: [Float] = []
+
+    /// How often to re-read brightness. Fast (0.5s) only when we rely on it to notice key presses;
+    /// slow (2s) when our key tap already handles the keys and this only keeps the slider in sync.
+    func setPollInterval(_ seconds: TimeInterval) {
+        timer?.invalidate()
+        timer = Timer.every(seconds) { [weak self] _ in self?.poll() }
+    }
 
     private func poll() {
         guard let b = read() else { resolveDisplay(); return }

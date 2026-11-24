@@ -275,6 +275,7 @@ private struct FeaturesPage: View {
                     if vm.hasNotch {
                         Toggle("Show logo next to the notch when idle", isOn: Binding(get: { vm.showIdleBadge }, set: { vm.setShowIdleBadge($0) }))
                     } else {
+                        Toggle("Always show a small Notchy logo to click", isOn: Binding(get: { vm.showIdleLogoNoNotch }, set: { vm.setShowIdleLogoNoNotch($0) }))
                         Toggle("Show music & timer in the menu bar", isOn: Binding(get: { vm.showMenuBarActivities }, set: { vm.setShowMenuBarActivities($0) }))
                     }
                     Toggle("Show the current lyric under the notch", isOn: Binding(get: { vm.lyricsInNotch }, set: { vm.setLyricsInNotch($0) }))
@@ -696,6 +697,51 @@ private struct PermissionsPage: View {
     }
 }
 
+// MARK: - Performance
+
+private struct PerformanceSection: View {
+    @ObservedObject var efficiency: Efficiency
+    @EnvironmentObject var vm: NotchViewModel
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "gauge.with.dots.needle.33percent").font(.system(size: 20))
+                    .foregroundStyle(efficiency.cpuPercent > Efficiency.cpuLimit ? .orange : .green).frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(efficiency.cpuHistory.isEmpty ? "Measuring CPU use…" : "Notchy is using \(String(format: "%.1f", efficiency.cpuPercent))% CPU")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(efficiency.isActive ? "Efficiency mode is on: background work runs at half speed."
+                         : "Averaged over the last 30 seconds. Notchy slows itself down automatically if this goes above \(Int(Efficiency.cpuLimit))%.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            Divider()
+            Picker("Efficiency mode", selection: $efficiency.mode) {
+                ForEach(Efficiency.Mode.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .font(.system(size: 12))
+            HStack {
+                Text("Automatic turns it on in Low Power Mode or if Notchy ever uses too much CPU.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer()
+                Button(copied ? "Copied" : "Copy Diagnostics") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(efficiency.diagnostics(vm: vm), forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
+                }
+                .help("Copies an anonymous report (Mac model, displays, features on, CPU history) to paste into a bug report")
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
+    }
+}
+
 // MARK: - Updates
 
 private struct UpdatesSection: View {
@@ -801,6 +847,7 @@ private struct AboutPage: View {
                 }
             }
             UpdatesSection(updater: vm.updater)
+            PerformanceSection(efficiency: Efficiency.shared)
             VStack(alignment: .leading, spacing: 8) {
                 Link("Website", destination: URL(string: "https://rishidil.github.io/notchy/")!)
                 Link("Source code on GitHub", destination: URL(string: "https://github.com/rishidil/notchy")!)

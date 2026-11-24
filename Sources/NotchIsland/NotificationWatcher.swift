@@ -38,7 +38,7 @@ final class NotificationWatcher: ObservableObject {
     init() {
         enabled = UserDefaults.standard.object(forKey: "notificationPreviews") as? Bool ?? true
         mutedApps = Set(UserDefaults.standard.stringArray(forKey: "mutedNotificationApps") ?? [])
-        timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in self?.poll() }
+        timer = Timer.every(3) { [weak self] _ in self?.poll() }
         poll()
     }
 

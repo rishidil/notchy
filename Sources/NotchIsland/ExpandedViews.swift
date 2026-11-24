@@ -245,7 +245,7 @@ struct ProgressBar: View {
     @ObservedObject var music: MusicController
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
             let pos = music.position(at: ctx.date)
             let frac = music.duration > 0 ? pos / music.duration : 0
             VStack(spacing: 3) {

@@ -49,8 +49,15 @@ final class NotchViewModel: ObservableObject {
     /// False on Macs/displays without a camera notch: the island then hides until it has something to show.
     @Published var hasNotch = true
     @Published private(set) var showMenuBarActivities = UserDefaults.standard.object(forKey: "showMenuBarActivities") as? Bool ?? true
+    /// Macs without a notch: keep a tiny Notchy logo at the top of the screen to click (off by default, to save space).
+    @Published private(set) var showIdleLogoNoNotch = UserDefaults.standard.bool(forKey: "showIdleLogoNoNotch")
+    /// A file is being dragged over the island (detected by Notchy itself, independent of AppKit's drop routing).
+    @Published private(set) var fileDragActive = false
+    private var lastDropHandled = Date.distantPast
     /// Whether volume/brightness keys are currently being intercepted (false if Accessibility is missing).
-    @Published private(set) var keyTapActive = false
+    @Published private(set) var keyTapActive = false {
+        didSet { brightness.setPollInterval(keyTapActive ? 2 : 0.5) }
+    }
     @Published private(set) var lyricsInNotch = UserDefaults.standard.bool(forKey: "lyricsInNotch")
     @Published private(set) var dropActionsEnabled = UserDefaults.standard.object(forKey: "dropActions") as? Bool ?? true
     /// All tabs in the user's order, and which of them are switched on.
@@ -143,7 +150,12 @@ final class NotchViewModel: ObservableObject {
 
         battery.onPowerSourceChange = { [weak self] in self?.show(.battery, for: 3) }
         volume.onChange = { [weak self] in self?.showHUD(.volume) }
-        brightness.onChange = { [weak self] in self?.showHUD(.brightness) }
+        // With our key tap active, key presses show the HUD directly; poll-detected changes are things like
+        // auto-brightness drift, which shouldn't keep popping the HUD.
+        brightness.onChange = { [weak self] in
+            guard let self, !self.keyTapActive else { return }
+            self.showHUD(.brightness)
+        }
         timer.onFinish = { [weak self] in self?.show(.timerDone, for: 10) }
         timer.onPhaseChange = { [weak self] phase in
             let text = phase == .focus ? "Break's over — time to focus" : "Nice work! Take a \(phase == .longBreak ? "long " : "")break"
@@ -309,7 +321,9 @@ final class NotchViewModel: ObservableObject {
     var idleBadgeWidth: CGFloat { notchSize.height + 8 }
     private var showsIdleBadge: Bool { hasNotch && !isExpanded && showIdleBadge && activity == .none }
     /// No notch and nothing to show: draw nothing at all, so no screen space is used.
-    var isHiddenIdle: Bool { !hasNotch && !isExpanded && activity == .none }
+    var isHiddenIdle: Bool { !hasNotch && !isExpanded && activity == .none && !showIdleLogoNoNotch }
+    /// No notch, idle, but the user wants the small logo to click.
+    var showsNoNotchLogo: Bool { !hasNotch && !isExpanded && activity == .none && showIdleLogoNoNotch }
     /// Shifts the island left when only the left-hand idle badge is showing.
     var bodyOffsetX: CGFloat { showsIdleBadge ? -idleBadgeWidth / 2 : 0 }
 
@@ -317,7 +331,9 @@ final class NotchViewModel: ObservableObject {
         let n = notchSize
         let wide = n.width + 2 * sideWidth
         switch activity {
-        case .none: return hasNotch && showIdleBadge ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n
+        case .none:
+            if hasNotch { return showIdleBadge ? CGSize(width: n.width + idleBadgeWidth, height: n.height) : n }
+            return showIdleLogoNoNotch ? CGSize(width: n.height + 16, height: n.height) : n
         case .hud: return CGSize(width: hasNotch ? wide : max(wide, 240), height: n.height + 26)
         case .notification: return CGSize(width: max(wide, 420), height: n.height + 62)
         case .timerDone: return CGSize(width: max(wide, 360), height: n.height + 44)
@@ -478,7 +494,7 @@ final class NotchViewModel: ObservableObject {
 
     /// Whether dropping files on the notch does anything with the current settings.
     var acceptsDrops: Bool { dropActionsEnabled || isTabEnabled(.shelf) }
-    var showsDropActions: Bool { dropPreview || (isDropTargeted && dropActionsEnabled) }
+    var showsDropActions: Bool { dropPreview || ((isDropTargeted || fileDragActive) && dropActionsEnabled) }
 
     /// Called while a file drag hovers over the notch.
     func beginFileDrag() {
@@ -491,6 +507,44 @@ final class NotchViewModel: ObservableObject {
         if targeted {
             if !dropActionsEnabled && isTabEnabled(.shelf) { tab = .shelf }
             expand()
+        }
+    }
+
+    /// A file drag is over the island (from the pointer sampler). Opens the drop UI from whatever tab is showing.
+    func fileDragMoved(to local: CGPoint) {
+        if !fileDragActive {
+            fileDragActive = true
+            if !dropActionsEnabled && isTabEnabled(.shelf) { tab = .shelf }
+            expand()
+        }
+        updateDropHover(local)
+    }
+
+    func fileDragLeft() {
+        guard fileDragActive else { return }
+        fileDragActive = false
+        if !isDropTargeted { dropHover = nil }
+    }
+
+    /// The mouse was released over the island during a file drag. If AppKit didn't deliver the drop to us
+    /// (it can miss windows that only just started accepting the mouse), read the dragged files ourselves.
+    func fileDragReleased(at local: CGPoint) {
+        guard fileDragActive else { return }
+        updateDropHover(local)
+        let hover = dropHover
+        fileDragActive = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self, Date().timeIntervalSince(self.lastDropHandled) > 1 else { return } // the normal drop ran
+            let urls = (NSPasteboard(name: .drag).readObjects(forClasses: [NSURL.self],
+                                                              options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+            guard !urls.isEmpty else { return }
+            let action: DropAction? = self.dropActionsEnabled ? (hover ?? (self.isTabEnabled(.shelf) ? .shelf : nil))
+                                                              : (self.isTabEnabled(.shelf) ? .shelf : nil)
+            self.dropHover = nil
+            if let action {
+                self.lastDropHandled = Date()
+                self.run(action, on: urls)
+            }
         }
     }
 
@@ -508,6 +562,8 @@ final class NotchViewModel: ObservableObject {
         let action: DropAction? = dropActionsEnabled ? dropHover : (isTabEnabled(.shelf) ? .shelf : nil)
         // Dropped on the island but not on a tile: keep it on the shelf if there is one.
         guard let chosen = action ?? (isTabEnabled(.shelf) ? .shelf : nil) else { return false }
+        lastDropHandled = Date()
+        fileDragActive = false
         FileShelf.loadURLs(providers) { [weak self] urls in
             guard let self, !urls.isEmpty else { return }
             self.run(chosen, on: urls)
@@ -587,7 +643,7 @@ final class NotchViewModel: ObservableObject {
         keyTapActive = false
         Self.log.info("media key tap waiting for Accessibility permission")
         MediaKeyTap.requestTrust()
-        trustTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
+        trustTimer = Timer.every(2) { [weak self] t in
             guard let self, self.keyTap.start() else { return }
             t.invalidate()
             self.keyTapActive = true
@@ -606,6 +662,11 @@ final class NotchViewModel: ObservableObject {
     func setShowMenuBarActivities(_ on: Bool) {
         UserDefaults.standard.set(on, forKey: "showMenuBarActivities")
         withAnimation(Self.spring) { showMenuBarActivities = on }
+    }
+
+    func setShowIdleLogoNoNotch(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "showIdleLogoNoNotch")
+        withAnimation(Self.spring) { showIdleLogoNoNotch = on }
     }
 
     func setShowIdleBadge(_ on: Bool) {

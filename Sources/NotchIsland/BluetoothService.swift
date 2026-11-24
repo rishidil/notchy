@@ -65,7 +65,7 @@ final class BluetoothService: NSObject, ObservableObject {
         connectNote = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(deviceConnected(_:device:)))
         reload()
         refreshBatteries(full: true)
-        timer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in self?.refreshBatteries(full: false) }
+        timer = Timer.every(120) { [weak self] _ in self?.refreshBatteries(full: false) }
     }
 
     func stop() {

@@ -27,7 +27,7 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 | 🔔 **Notification history** | Recent notifications in their own tab |
 | ✨ **Agents (T3 Code)** | See, prompt and start your [T3 Code](https://t3.codes) agents; live activity while they work, alerts when one finishes or is waiting for your approval |
 | ⬆️ **Automatic updates** | Notchy checks for new versions and updates itself in a few seconds |
-| 🪄 **Drop actions** | Drag files onto the notch: keep on shelf, AirDrop, compress, copy path or email |
+| 🪄 **Drop actions** | Drag files onto the notch from any tab: keep on shelf, AirDrop, compress, copy path or email |
 | 📥 **File shelf** | Hold dropped files, drag them out anywhere later, or AirDrop them |
 | ⚡ **Quick toggles** | Dark Mode, Keep Awake (uses [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) if installed; right-click for durations), Mute, Screenshot, Sleep Display |
 | 🚀 **App shelf** | Your favorite apps one click away (`+` to add, right-click to remove) |
@@ -95,6 +95,17 @@ Good to know:
   status and project folders from T3 Code's local database (read-only) so it can react instantly without polling the CLI.
   Nothing leaves your Mac.
 - If a T3 Code update changes its database, Notchy falls back to the CLI automatically.
+
+## Performance
+
+Notchy is built to stay out of the way: about 1–3% CPU with music playing on an M-series Mac.
+
+- It checks the pointer position on a light timer instead of reacting to every mouse event (high-rate mice send up to
+  1,000 a second), and pauses background work while the display is asleep or the Mac is locked.
+- It measures its own CPU every 30 seconds. If it ever averages over 10%, or the Mac is in Low Power Mode, it switches to
+  **efficiency mode** and halves all background work. Control it in **Settings → About → Performance**.
+- Seeing high CPU? Right-click the island → **Copy Diagnostics** and paste it into an issue. The report lists your Mac model,
+  displays, which features are on and the CPU history, with no names, titles or personal data.
 
 ## Updates
 
@@ -197,6 +208,7 @@ asked for permissions one more time.
 | `SettingsView.swift` | Settings / first-launch window |
 | `AgentsService.swift` | T3 Code agents: `t3` CLI for threads/messages, read-only status from T3 Code's database |
 | `UpdateService.swift` | In-app updates from GitHub Releases, with signature verification |
+| `Efficiency.swift` | Low-power timers, CPU self-monitoring / efficiency mode, anonymous diagnostics |
 | `DemoData.swift` | Sample data for screenshots (`--demo`; nothing saved) |
 | `website/` | The Next.js + shadcn/ui website (deployed to GitHub Pages) |
 
@@ -209,8 +221,10 @@ Automation: `notchy://open?tab=weather`, `notchy://timer?minutes=10`, `notchy://
   so browser audio (YouTube etc.) can't be shown.
 - **Private APIs:** brightness and notification previews use private macOS APIs, which could break in a future macOS update.
 - **Macs without a notch** (M1 Air, 13" Pro, iMac, external displays): the island stays invisible until something
-  happens (music, timer, volume…), then appears as a slim pill in the menu bar. Push the cursor to the top center of
-  the screen to open it. Turn off *Show Music & Timer in Menu Bar* in ⚙︎ to show only pop-ups.
+  happens (music, a timer, volume…), then appears as a slim pill in the menu bar. Push the cursor to the top center of
+  the screen to open it. Prefer a target to click? Turn on **Always show a small Notchy logo** in Settings → Features
+  (or right-click the island → *Always Show Small Logo*) for a tiny logo at the top center. Turn off *Show Music & Timer
+  in Menu Bar* to show only pop-ups.
 - **Screen Time** is tallied by Notchy itself from the moment you turn the tab on (macOS has no public Screen Time API).
 - **Privacy:** notification content, screen time and your files never leave your Mac. Weather requests send only
   approximate coordinates to Open-Meteo; lyrics lookups send the song title and artist to LRCLIB.

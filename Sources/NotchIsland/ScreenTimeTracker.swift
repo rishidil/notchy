@@ -71,7 +71,7 @@ final class ScreenTimeTracker: ObservableObject {
 
         currentApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         segmentStart = Date()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.checkpoint() }
+        timer = Timer.every(30) { [weak self] _ in self?.checkpoint() }
     }
 
     func stop() {

@@ -66,6 +66,22 @@ enum DemoData {
         case "agent-done":
             vm.collapse()
             vm.show(.toast(symbol: "checkmark.circle.fill", text: "Agent finished · Add rate limiting to /login", tint: .green), for: 60, tab: .agents)
+        case "idle":
+            vm.timer.cancel()
+            vm.dismissTransient()
+            vm.collapse()
+            vm.setDemoTabs([.home, .calendar, .timer, .weather, .shelf])
+            vm.music.applyDemo(title: "Midnight Drive", artist: "Neon Coast", album: "Afterglow", duration: 214, position: 62,
+                               artwork: nil, playing: false)
+        case "filedrag":
+            // Simulates the pointer sampler seeing a file dragged over the island.
+            vm.fileDragMoved(to: CGPoint(x: 60, y: 60))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                if let f = vm.dropTileFrames[.shelf] { vm.fileDragMoved(to: CGPoint(x: f.midX, y: f.midY)) }
+            }
+        case "filedrop":
+            let p = vm.dropTileFrames[.shelf].map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: 60, y: 60)
+            vm.fileDragReleased(at: p)
         case "hud-open":
             vm.tab = .lyrics
             vm.expand()

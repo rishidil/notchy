@@ -104,6 +104,10 @@ struct SettingsMenuItems: View {
 
     var body: some View {
         Button("Settings…") { vm.openSettings() }
+        Button("Copy Diagnostics") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(Efficiency.shared.diagnostics(vm: vm), forType: .string)
+        }
         Divider()
         if vm.notifications.hasAccess {
             Toggle("Notification Previews", isOn: Binding(get: { vm.notifications.enabled },
@@ -119,6 +123,7 @@ struct SettingsMenuItems: View {
         if vm.hasNotch {
             Toggle("Show Logo When Idle", isOn: Binding(get: { vm.showIdleBadge }, set: { vm.setShowIdleBadge($0) }))
         } else {
+            Toggle("Always Show Small Logo", isOn: Binding(get: { vm.showIdleLogoNoNotch }, set: { vm.setShowIdleLogoNoNotch($0) }))
             Toggle("Show Music & Timer in Menu Bar", isOn: Binding(get: { vm.showMenuBarActivities },
                                                                    set: { vm.setShowMenuBarActivities($0) }))
         }
@@ -141,7 +146,9 @@ struct CollapsedView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if vm.activity == .none {
+            if vm.showsNoNotchLogo {
+                NotchLogo(size: 14).frame(maxWidth: .infinity).frame(height: vm.notchSize.height)
+            } else if vm.activity == .none {
                 HStack(spacing: 0) {
                     if vm.showIdleBadge && vm.hasNotch {
                         NotchLogo(size: 15).frame(width: vm.idleBadgeWidth)

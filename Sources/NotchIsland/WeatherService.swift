@@ -78,7 +78,7 @@ final class WeatherService: NSObject, ObservableObject, CLLocationManagerDelegat
         guard !isRunning, !isDemoMode else { return }
         isRunning = true
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in self?.refresh() }
+        timer = Timer.every(15 * 60) { [weak self] _ in self?.refresh() }
     }
 
     func stop() {

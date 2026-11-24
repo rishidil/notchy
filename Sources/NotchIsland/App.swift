@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: NotchWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = Efficiency.shared // start CPU self-monitoring and sleep/wake tracking
         controller = NotchWindowController()
         controller?.show()
         // First launch: let people choose what their notch shows.

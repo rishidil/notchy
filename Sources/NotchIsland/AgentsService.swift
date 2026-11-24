@@ -50,7 +50,9 @@ final class AgentsService: ObservableObject {
     @Published private(set) var projects: [Project] = []
     @Published private(set) var threads: [AgentThread] = []
     @Published private(set) var loaded = false
-    @Published var selectedID: String? { didSet { if selectedID != oldValue && !isDemoMode { messages = []; loadMessages() } } }
+    @Published var selectedID: String? {
+        didSet { if selectedID != oldValue && !isDemoMode { messages = []; if visible { loadMessagesIfChanged(force: true) } } }
+    }
     @Published private(set) var messages: [Message] = []
     @Published private(set) var pendingRequests = 0
     @Published private(set) var sending = false
@@ -91,7 +93,7 @@ final class AgentsService: ObservableObject {
         cliPath = Self.findCLI()
         refresh(force: true)
         // A cheap file-timestamp check every 2s; the CLI only runs when T3 Code's data actually changed.
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.tick() }
+        timer = Timer.every(3) { [weak self] _ in self?.tick() }
     }
 
     func stop() {
@@ -104,7 +106,45 @@ final class AgentsService: ObservableObject {
     func setVisible(_ v: Bool) {
         guard !isDemoMode else { return }
         visible = v
-        if v { refresh(force: true); loadMessages() }
+        guard v else { return }
+        if Date().timeIntervalSince(lastRefresh) > 30 { refresh(force: true) }
+        loadMessagesIfChanged(force: messagesLoadedFor != selectedID)
+    }
+
+    // Messages come from the CLI (≈0.4s CPU per call), so only reload when the selected thread really has
+    // something new (checked in T3 Code's database) and at most every 10s (20s in efficiency mode).
+    private var messagesLoadedFor: String?
+    private var messagesStamp: String?
+    private var lastMessagesLoad = Date.distantPast
+
+    private func loadMessagesIfChanged(force: Bool = false) {
+        guard let id = selectedID else { return }
+        queue.async { [weak self] in
+            let stamp = Self.messageStamp(threadID: id)
+            DispatchQueue.main.async {
+                guard let self, self.selectedID == id else { return }
+                let changed = stamp == nil || stamp != self.messagesStamp
+                let gap: TimeInterval = Efficiency.shared.isActive ? 20 : 10
+                guard force || (changed && Date().timeIntervalSince(self.lastMessagesLoad) >= gap) else { return }
+                self.messagesStamp = stamp
+                self.loadMessages()
+            }
+        }
+    }
+
+    /// Latest message update for a thread, from T3 Code's database (read-only). nil if unavailable.
+    private static func messageStamp(threadID: String) -> String? {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); return nil }
+        defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 200)
+        var stmt: OpaquePointer?
+        let sql = "SELECT MAX(updated_at) || ':' || COUNT(*) FROM orchestration_v2_projection_messages WHERE thread_id = ?"
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, threadID, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return sqlite3_column_text(stmt, 0).map { String(cString: $0) }
     }
 
     /// Every 2s: if T3 Code's data changed, read thread status straight from its database (read-only, <1ms).
@@ -121,17 +161,17 @@ final class AgentsService: ObservableObject {
                 guard let self else { return }
                 guard let fast else {
                     // Database layout unknown (T3 Code changed it): fall back to the CLI, less often.
-                    if sinceCLI >= (self.visible ? 5 : 15) { self.refresh(force: false) }
+                    if sinceCLI >= (self.visible ? 15 : 60) { self.refresh(force: false) }
                     return
                 }
                 let known = Set(self.threads.map(\.id))
                 let hasNew = fast.keys.contains { !known.contains($0) }
-                if hasNew || sinceCLI > (self.visible ? 20 : 75) {
+                if hasNew || sinceCLI > (self.visible ? 60 : 180) {
                     self.refresh(force: false)
                 } else {
                     self.publish(Self.overlay(fast, on: self.threads))
                 }
-                if self.visible { self.loadMessages() }
+                if self.visible { self.loadMessagesIfChanged() }
             }
         }
     }
@@ -246,6 +286,8 @@ final class AgentsService: ObservableObject {
     func loadMessages() {
         guard !isDemoMode else { return }
         guard let cli = cliPath, let id = selectedID else { return }
+        lastMessagesLoad = Date()
+        messagesLoadedFor = id
         queue.async { [weak self] in
             guard let data = Self.run(cli, ["thread", "show", id, "--json", "--messages", "6"]),
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
