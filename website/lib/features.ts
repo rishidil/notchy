@@ -39,18 +39,18 @@ const orange = "#ffa84d";
 export const FEATURES: Feature[] = [
   {
     id: "claude",
-    name: "Claude",
+    name: "AI",
     screenshot: "claude.webp",
     icon: Sparkle,
     color: "#d97757",
     tagline: "Ask anything, from the top of your screen.",
     description:
-      "Claude lives in the notch with your own Anthropic account: answers stream in, web search brings sources, and files you drop on the notch come along as context.",
+      "Quick questions are answered free and privately by Apple's on-device model. Files and harder questions go to Claude, through T3 Code on your own plan or with an API key.",
     points: [
-      "Drop images, PDFs, code or folders on Ask Claude",
-      "Web search with sources",
+      "Free on-device answers (macOS 26 + Apple Intelligence)",
+      "Claude on your plan through T3 Code, or with an API key",
+      "Drop images, PDFs, code or folders on Ask AI",
       "Live activity and a pop-up when the answer's ready",
-      "Sonnet 5.5 by default, Opus 5.5 and Haiku 5.5 a click away",
     ],
   },
   {
@@ -213,8 +213,8 @@ export const FEATURES: Feature[] = [
     color: violet,
     tagline: "Drag. Drop. Done.",
     description:
-      "Drag files onto the notch to ask Claude about them, shelve them for later, AirDrop them, compress them or copy their path.",
-    points: ["Ask Claude about any file", "File shelf — drag out anywhere later", "AirDrop, compress or copy path"],
+      "Drag files onto the notch to ask AI about them, shelve them for later, AirDrop them, compress them or copy their path.",
+    points: ["Ask AI about any file", "File shelf — drag out anywhere later", "AirDrop, compress or copy path"],
   },
   {
     id: "hud",

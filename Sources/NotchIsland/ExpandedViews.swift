@@ -15,7 +15,7 @@ struct ExpandedView: View {
                 } else {
                     switch vm.tab {
                     case .home: HomeTab()
-                    case .claude: ClaudeTab(claude: vm.claude)
+                    case .claude: AssistantTab(claude: vm.assistant)
                     case .calendar: CalendarTab(calendar: vm.calendar)
                     case .timer: TimerTab(timer: vm.timer)
                     case .shelf: ShelfTab(files: vm.files)
@@ -99,7 +99,7 @@ struct HeaderBar: View {
         let color: Color? = switch tab {
         case .timer: vm.timer.isActive ? (vm.timer.phase?.color ?? .orange) : nil
         case .shelf: vm.files.items.isEmpty ? nil : .blue
-        case .claude: vm.claude.isStreaming ? .claude : nil
+        case .claude: vm.assistant.isStreaming ? .claude : nil
         case .todo: vm.todos.remaining > 0 ? .green : nil
         case .lyrics: vm.lyrics.state == .synced ? .pink : nil
         case .agents: vm.agents.attentionCount > 0 ? .orange : (vm.agents.runningCount > 0 ? .green

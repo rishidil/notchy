@@ -4,20 +4,21 @@ import { Button } from "@/components/ui/button";
 import { GitHubIcon } from "@/components/site/icons";
 import { SITE, asset } from "@/lib/site";
 
+// Absolute links, so they also work from /docs.
 const links = [
-  { href: "#claude", label: "Claude" },
-  { href: "#features", label: "Features" },
-  { href: "#agents", label: "Agents" },
-  { href: "#customize", label: "Customize" },
-  { href: "#download", label: "Download" },
-  { href: "#faq", label: "FAQ" },
+  { href: asset("/#ai"), label: "AI" },
+  { href: asset("/#features"), label: "Features" },
+  { href: asset("/#agents"), label: "Agents" },
+  { href: asset("/#download"), label: "Download" },
+  { href: asset("/#faq"), label: "FAQ" },
+  { href: asset("/docs/"), label: "Docs" },
 ];
 
 export function Nav() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/[0.06] bg-[#060608]/70 backdrop-blur-xl supports-[backdrop-filter]:bg-[#060608]/55">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
-        <a href="#top" className="flex items-center gap-2.5 font-semibold tracking-tight">
+        <a href={asset("/")} className="flex items-center gap-2.5 font-semibold tracking-tight">
           <Image
             src={asset("/icon-96.png")}
             alt=""

@@ -253,7 +253,7 @@ struct ClaudeSource: Identifiable, Equatable, Hashable {
 /// Rebuilds the assistant message from stream events: the text shown live, the raw content blocks (needed to
 /// resume a `pause_turn`), cited sources and what Claude is doing right now.
 struct StreamAccumulator {
-    enum Activity: Equatable { case thinking, searching(String?), writing }
+    enum Activity: Equatable { case thinking, searching(String?), working(String), writing }
 
     private(set) var blocks: [Int: [String: Any]] = [:]
     private var partialJSON: [Int: String] = [:]

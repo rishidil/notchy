@@ -247,7 +247,7 @@ struct CollapsedView: View {
                 Text("\(waiting > 0 ? waiting : running)").font(.system(size: 12, weight: .semibold).monospacedDigit())
             }
         case .claude:
-            Image(systemName: vm.claude.activity == .thinking ? "ellipsis" : (vm.claude.activity == .writing ? "text.alignleft" : "globe"))
+            Image(systemName: vm.assistant.activity == .thinking ? "ellipsis" : (vm.assistant.activity == .writing ? "text.alignleft" : "globe"))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.6))
                 .symbolEffect(.variableColor.iterative, options: .repeating)
@@ -290,7 +290,7 @@ struct CollapsedView: View {
         case .agents(let running, _):
             AgentsLiveRow(agents: vm.agents, running: running)
         case .claude:
-            ClaudeLiveRow(claude: vm.claude)
+            AssistantLiveRow(claude: vm.assistant)
         case .music where vm.showsLyricLine:
             TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
                 Text(vm.lyrics.line(at: vm.music.position(at: ctx.date)) ?? "♪")

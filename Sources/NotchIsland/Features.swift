@@ -29,7 +29,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
     var title: String {
         switch self {
         case .home: "Home"
-        case .claude: "Claude"
+        case .claude: "AI"
         case .calendar: "Calendar"
         case .timer: "Timer & Pomodoro"
         case .weather: "Weather"
@@ -47,7 +47,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
     var blurb: String {
         switch self {
         case .home: "Now playing, volume & brightness, quick toggles and your favorite apps"
-        case .claude: "Ask Claude anything, or drop files on the notch to ask about them"
+        case .claude: "Ask anything: free on-device answers, and Claude for files and harder questions"
         case .calendar: "Today and tomorrow, with one-click Join for video calls"
         case .timer: "Timers and Pomodoro focus sessions that count down in the notch"
         case .weather: "Current conditions and the forecast for where you are"
@@ -89,7 +89,7 @@ enum DropAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .askClaude: "Ask Claude"
+        case .askClaude: "Ask AI"
         case .shelf: "Keep on Shelf"
         case .airDrop: "AirDrop"
         case .compress: "Compress"

@@ -82,7 +82,7 @@ final class NotchViewModel: ObservableObject {
     let system = SystemMonitor()
     let screenTime = ScreenTimeTracker()
     let agents = AgentsService()
-    let claude = ClaudeService()
+    private(set) lazy var assistant = AssistantService(agents: agents)
     let updater = UpdateService()
     /// Something to do when the user clicks the current pop-up (e.g. open the update screen).
     private var actionForTransient: (() -> Void)?
@@ -138,7 +138,7 @@ final class NotchViewModel: ObservableObject {
             system.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             screenTime.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             agents.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            claude.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            assistant.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             updater.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(services)
@@ -185,9 +185,9 @@ final class NotchViewModel: ObservableObject {
                       for: 8, tab: .agents)
             NSSound(named: "Tink")?.play()
         }
-        claude.onAnswer = { [weak self] firstLine in
+        assistant.onAnswer = { [weak self] firstLine in
             guard let self, !(self.isExpanded && self.tab == .claude) else { return }
-            self.show(.toast(symbol: "sparkle", text: "Claude · \(firstLine.isEmpty ? "Answer ready" : firstLine)", tint: .claude), for: 6, tab: .claude)
+            self.show(.toast(symbol: "sparkle", text: "\(self.assistant.activeEngine == .onDevice ? "AI" : "Claude") · \(firstLine.isEmpty ? "Answer ready" : firstLine)", tint: .claude), for: 6, tab: .claude)
         }
         keyTap.handler = { [weak self] key, fine, isDown, isRepeat in
             self?.handleMediaKey(key, fine: fine, isDown: isDown, isRepeat: isRepeat) ?? false
@@ -217,7 +217,7 @@ final class NotchViewModel: ObservableObject {
         }
         d.set(true, forKey: "announcedClaude")
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-            self?.show(.toast(symbol: "sparkle", text: "New: Claude in your notch · Click to set it up", tint: .claude), for: 10,
+            self?.show(.toast(symbol: "sparkle", text: "New: AI in your notch, with Claude · Click to set it up", tint: .claude), for: 10,
                        action: { [weak self] in self?.openSettings(page: .connections) })
         }
     }
@@ -283,6 +283,7 @@ final class NotchViewModel: ObservableObject {
         agents.setVisible(isExpanded && tab == .agents)
         guard isExpanded else { return }
         if tab == .weather { weather.refreshIfStale() }
+        if tab == .claude { assistant.refreshAvailability() }
         if tab == .bluetooth { bluetooth.refreshDetails() }
     }
 
@@ -321,7 +322,7 @@ final class NotchViewModel: ObservableObject {
             return .agents(running: agents.runningCount, waiting: agents.attentionCount)
         }
         // Claude working on an answer you're not looking at.
-        if claude.isStreaming && !(isExpanded && tab == .claude) { return .claude }
+        if assistant.isStreaming && !(isExpanded && tab == .claude) { return .claude }
         if isTabEnabled(.agents) && agents.runningCount > 0 {
             return .agents(running: agents.runningCount, waiting: 0)
         }
@@ -619,7 +620,7 @@ final class NotchViewModel: ObservableObject {
     private func run(_ action: DropAction, on urls: [URL]) {
         switch action {
         case .askClaude:
-            claude.attach(urls)
+            assistant.attach(urls)
             tab = .claude
             expand()
         case .shelf:
@@ -766,7 +767,7 @@ final class NotchViewModel: ObservableObject {
             guard isTabEnabled(.claude) else { return }
             tab = .claude
             expand()
-            if let question = q("q"), !question.isEmpty { claude.send(question) } else { claude.focusRequest &+= 1 }
+            if let question = q("q"), !question.isEmpty { assistant.send(question) } else { assistant.focusRequest &+= 1 }
         case "demo":
             DemoData.showState(q("state") ?? "", on: self, path: q("path"))
         default:

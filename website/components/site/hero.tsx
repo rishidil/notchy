@@ -29,7 +29,7 @@ export function Hero() {
             className="h-7 gap-2 rounded-full border-white/10 bg-white/[0.04] px-3 text-xs text-muted-foreground transition-colors group-hover:border-white/20 group-hover:text-foreground"
           >
             <span className="size-1.5 rounded-full bg-[#d97757]" />
-            New in 1.4: Claude in your notch · Free &amp; open source
+            New in 1.4: AI in your notch, with Claude · Free &amp; open source
             <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
           </Badge>
         </a>

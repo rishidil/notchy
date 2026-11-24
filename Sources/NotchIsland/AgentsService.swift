@@ -158,10 +158,13 @@ final class AgentsService: ObservableObject {
     private var visible = false
     private(set) var isRunning = false
 
-    private static let home = NSHomeDirectory() + "/.t3"
-    private static let dbPath = home + "/userdata/statev2.sqlite"
+    static let home = NSHomeDirectory() + "/.t3"
+    static let dbPath = home + "/userdata/statev2.sqlite"
 
     init() { cliPath = Self.findCLI() }
+
+    /// Uses a specific `t3` executable (tests).
+    func overrideCLI(_ path: String?) { cliPath = path }
 
     // MARK: Lifecycle
 
@@ -455,9 +458,9 @@ final class AgentsService: ObservableObject {
         }
     }
 
-    static func pendingRequests(threadID: String) -> [PendingRequest] {
+    static func pendingRequests(threadID: String, databasePath: String = dbPath) -> [PendingRequest] {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); return [] }
+        guard sqlite3_open_v2(databasePath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); return [] }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 200)
         let sql = """
@@ -609,7 +612,8 @@ final class AgentsService: ObservableObject {
            let text = String(data: out, encoding: .utf8) {
             for line in text.split(separator: "\n") {
                 let parts = line.components(separatedBy: "\u{1f}")
-                guard parts.count >= 3, !parts[2].isEmpty else { continue }
+                // Notchy's own AI chats live in their own project; they're shown in the AI tab, not here.
+                guard parts.count >= 3, !parts[2].isEmpty, parts[2] != T3ChatEngine.folder.path else { continue }
                 result.append(Project(id: parts[0], title: parts[1].isEmpty ? URL(fileURLWithPath: parts[2]).lastPathComponent : parts[1], path: parts[2]))
             }
         }

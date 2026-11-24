@@ -81,7 +81,7 @@ final class NotchWindowController {
             .store(in: &bag)
 
         // Files dropped on "Ask Claude" (or notchy://ask): give the panel keyboard focus so you can type right away.
-        vm.claude.$focusRequest.dropFirst()
+        vm.assistant.$focusRequest.dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

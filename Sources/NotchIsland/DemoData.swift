@@ -45,7 +45,7 @@ enum DemoData {
                              body: "Neon Coast just dropped Afterglow", date: now.addingTimeInterval(-10800)),
         ])
         vm.files.applyDemo(demoFiles())
-        vm.claude.applyDemo(files: demoFiles().filter { $0.pathExtension == "png" })
+        vm.assistant.applyDemo(files: demoFiles().filter { $0.pathExtension == "png" })
     }
 
     static let messageItem = NotificationItem(id: 99, bundleID: "com.apple.MobileSMS", title: "Sam", subtitle: "",
@@ -95,9 +95,14 @@ enum DemoData {
             vm.dropPreview = false
             vm.tab = .claude
             vm.expand()
+        case "ai-quick":
+            vm.assistant.demoQuick()
+            vm.dropPreview = false
+            vm.tab = .claude
+            vm.expand()
         case "claude-live":
             vm.collapse()
-            vm.claude.demoStreaming()
+            vm.assistant.demoStreaming()
         case "claude-done":
             vm.collapse()
             vm.show(.toast(symbol: "sparkle", text: "Claude · Q3 plan in one line: ship onboarding by Aug 15", tint: .claude), for: 60, tab: .claude)

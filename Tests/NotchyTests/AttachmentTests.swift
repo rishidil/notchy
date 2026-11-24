@@ -139,7 +139,7 @@ struct MarkdownTests {
     }
 
     @Test func firstLineForPopUp() {
-        #expect(ClaudeService.firstLine("**Short answer:** yes\nMore detail") == "Short answer: yes")
-        #expect(ClaudeService.firstLine("") == "")
+        #expect(AssistantService.firstLine("**Short answer:** yes\nMore detail") == "Short answer: yes")
+        #expect(AssistantService.firstLine("") == "")
     }
 }

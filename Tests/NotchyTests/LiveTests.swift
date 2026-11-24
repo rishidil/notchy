@@ -52,9 +52,11 @@ struct LiveT3Tests {
 @Suite("Live: Claude API", .serialized, .enabled(if: env["NOTCHY_LIVE_CLAUDE"] == "1"))
 @MainActor
 struct LiveClaudeTests {
-    func service(_ model: ClaudeModel, web: Bool) -> ClaudeService {
-        let s = ClaudeService()
+    func service(_ model: ClaudeModel, web: Bool) -> AssistantService {
+        let s = AssistantService(agents: AgentsService())
         s.resolver = ClaudeCredentialResolver(keychainKey: { nil }) // env key or ant sign-in only
+        s.choice = .claudeAPI
+        s.overrideAvailability([.claudeAPI])
         s.model = model
         s.webSearch = web
         s.effort = .low
@@ -92,5 +94,47 @@ struct LiveClaudeTests {
         s.send("What is the code word in the file? One word.")
         await waitUntilIdle(s, timeout: 90)
         #expect(s.messages.last?.text.uppercased().contains("MARMALADE") == true, "\(s.messages.last?.text ?? "")")
+    }
+}
+
+@Suite("Live: on-device model", .serialized, .enabled(if: env["NOTCHY_LIVE_ONDEVICE"] == "1"))
+@MainActor
+struct LiveOnDeviceTests {
+    @Test(.timeLimit(.minutes(2)))
+    func answersAndFollowsUp() async throws {
+        #expect(OnDeviceEngine.status.available, "\(OnDeviceEngine.status.note)")
+        let s = AssistantService(agents: AgentsService())
+        s.choice = .onDevice
+        s.overrideAvailability([.onDevice])
+        s.send("What is the capital of France? One word.")
+        await waitUntilIdle(s, timeout: 90)
+        #expect(s.messages.last?.engine == .onDevice)
+        #expect(s.messages.last?.text.contains("Paris") == true, "\(s.messages.last?.text ?? "")")
+        s.send("And of Italy? One word.")
+        await waitUntilIdle(s, timeout: 90)
+        #expect(s.messages.last?.text.contains("Rome") == true, "\(s.messages.last?.text ?? "")")
+    }
+}
+
+@Suite("Live: Claude via T3 Code", .serialized, .enabled(if: env["NOTCHY_LIVE_T3_CHAT"] == "1"))
+@MainActor
+struct LiveT3ChatTests {
+    /// Starts a real chat thread in the "Notchy" project (on your Claude plan), then a follow-up and a file.
+    @Test(.timeLimit(.minutes(5)))
+    func chatsThroughT3() async throws {
+        let agents = AgentsService()
+        let s = AssistantService(agents: agents)
+        s.choice = .claudeT3
+        s.t3Model = .haiku
+        s.overrideAvailability([.claudeT3])
+        s.send("Reply with exactly the word: marmalade")
+        await waitUntilIdle(s, timeout: 180)
+        #expect(s.messages.last?.isError == false, "\(s.messages.last?.text ?? "")")
+        #expect(s.messages.last?.text.lowercased().contains("marmalade") == true, "\(s.messages.last?.text ?? "")")
+        let t = TempDir()
+        s.attach([t.file("note.txt", "The secret fruit is KUMQUAT.")])
+        s.send("What's the secret fruit in the attached file? One word.")
+        await waitUntilIdle(s, timeout: 180)
+        #expect(s.messages.last?.text.uppercased().contains("KUMQUAT") == true, "\(s.messages.last?.text ?? "")")
     }
 }

@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if isDemoMode, let i = CommandLine.arguments.firstIndex(of: "--snapshots"), i + 1 < CommandLine.arguments.count,
            let vm = controller?.viewModel {
             let dir = CommandLine.arguments[i + 1]
-            let shots = ["claude", "drop-claude", "claude-live", "claude-done", "approval", "question", "approval-live"]
+            let shots = ["claude", "ai-quick", "drop-claude", "claude-live", "claude-done", "approval", "question", "approval-live"]
             for (n, state) in shots.enumerated() {
                 let t = 3.5 + Double(n) * 2.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + t) { DemoData.showState(state, on: vm) }

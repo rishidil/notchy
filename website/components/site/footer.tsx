@@ -17,10 +17,10 @@ export function Footer() {
             </div>
           </div>
           <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground">Features</a>
-            <a href="#customize" className="hover:text-foreground">Customize</a>
-            <a href="#download" className="hover:text-foreground">Download</a>
-            <a href="#faq" className="hover:text-foreground">FAQ</a>
+            <a href={asset("/#features")} className="hover:text-foreground">Features</a>
+            <a href={asset("/docs/")} className="hover:text-foreground">Developer docs</a>
+            <a href={asset("/#download")} className="hover:text-foreground">Download</a>
+            <a href={asset("/#faq")} className="hover:text-foreground">FAQ</a>
             <a
               href={SITE.githubUrl}
               target="_blank"

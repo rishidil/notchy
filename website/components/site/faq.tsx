@@ -26,9 +26,9 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     a: (
       <p>
         Everything runs on your Mac. Weather comes from Open-Meteo and lyrics from LRCLIB, and
-        neither needs an account. Notification content and Screen Time data never leave your Mac. With
-        Claude, only what you type in the Claude tab and the files you drop on Ask Claude are sent to
-        Anthropic, using your own account.
+        neither needs an account. Notification content and Screen Time data never leave your Mac. Quick AI
+        answers from Apple&apos;s on-device model stay on your Mac too. When a question goes to Claude, only what you
+        typed and the files you dropped on Ask AI are sent to Anthropic, on your own account.
       </p>
     ),
   },
@@ -75,16 +75,16 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     ),
   },
   {
-    q: "What do I need to use Claude?",
+    q: "Do I need to pay for the AI?",
     a: (
       <p>
-        An Anthropic API key, which you can create at{" "}
-        <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">
-          platform.claude.com
-        </a>
-        . Paste it once in Settings → Connections → Claude. You pay Anthropic directly for what you use (a quick question
-        with the default Sonnet 5.5 costs around a cent or less; each web search adds $0.01); Notchy itself stays free. Claude.ai
-        Pro and Max subscriptions can&apos;t be used by other apps.
+        No. On a Mac with macOS 26 and Apple Intelligence, quick questions are answered by Apple&apos;s on-device model for
+        free. For Claude you have two options. If you use{" "}
+        <a href="https://t3.codes" target="_blank" rel="noreferrer">T3 Code</a>, Notchy runs chats through it on the
+        Claude plan you already have. Or paste an Anthropic API key from{" "}
+        <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">platform.claude.com</a> and
+        pay Anthropic per use. Notchy never asks for your Claude password: Anthropic doesn&apos;t allow other apps to sign
+        in with a Claude.ai account.
       </p>
     ),
   },

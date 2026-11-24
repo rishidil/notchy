@@ -370,8 +370,8 @@ private struct ConnectionsPage: View {
 
     var body: some View {
         ConnectionsContent(calendar: vm.calendar, shelf: vm.shelf, files: vm.files, toggles: vm.toggles, music: vm.music,
-                           agents: vm.agents, claude: vm.claude, agentsTabOn: vm.isTabEnabled(.agents),
-                           claudeTabOn: vm.isTabEnabled(.claude), enableClaudeTab: { vm.setTab(.claude, enabled: true) }) {
+                           agents: vm.agents, claude: vm.assistant, agentsTabOn: vm.isTabEnabled(.agents),
+                           claudeTabOn: vm.isTabEnabled(.claude), enableAssistantTab: { vm.setTab(.claude, enabled: true) }) {
             vm.setTab(.agents, enabled: true)
         }
     }
@@ -384,10 +384,10 @@ private struct ConnectionsContent: View {
     @ObservedObject var toggles: SystemToggles
     @ObservedObject var music: MusicController
     @ObservedObject var agents: AgentsService
-    @ObservedObject var claude: ClaudeService
+    @ObservedObject var claude: AssistantService
     let agentsTabOn: Bool
     let claudeTabOn: Bool
-    let enableClaudeTab: () -> Void
+    let enableAssistantTab: () -> Void
     let enableAgentsTab: () -> Void
     @State private var keyDraft = ""
 
@@ -395,7 +395,7 @@ private struct ConnectionsContent: View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Connections", subtitle: "Accounts, apps and services Notchy works with.")
 
-            group("Claude", symbol: "sparkle", tint: .claude) {
+            group("AI", symbol: "sparkle", tint: .claude) {
                 claudeSection
             }
 
@@ -592,67 +592,103 @@ private struct ConnectionsContent: View {
     }
 
     @ViewBuilder private var claudeSection: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Your Anthropic account").font(.system(size: 13, weight: .semibold))
-                Text(claude.credentialSource.map { "Using \($0.title)" }
-                     ?? "Ask Claude from the notch with your own API key. You pay Anthropic per use; Notchy adds nothing.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            if claude.checkingCredential {
-                ProgressView().controlSize(.small)
-            } else if claude.isConfigured {
-                Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 12, weight: .medium))
-            }
+        Picker("Answer with", selection: $claude.choice) {
+            ForEach(EngineChoice.allCases) { Text($0.title).tag($0) }
         }
-        HStack(spacing: 8) {
-            SecureField(claude.hasSavedKey ? "Replace your saved API key (sk-ant-…)" : "Paste your API key (sk-ant-…)", text: $keyDraft)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { claude.saveKey(keyDraft); keyDraft = "" }
-            Button("Save") { claude.saveKey(keyDraft); keyDraft = "" }
-                .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-            if claude.hasSavedKey { Button("Remove") { claude.removeKey() } }
-        }
-        HStack(spacing: 10) {
-            Link("Get an API key", destination: URL(string: "https://platform.claude.com/settings/keys")!).font(.system(size: 12))
-            Text("Saved in your Mac's keychain. Developers: an `ant auth login` sign-in or ANTHROPIC_API_KEY is picked up automatically.")
-                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            if claude.isConfigured { Button("Test") { claude.testConnection() }.controlSize(.small) }
-        }
-        if let r = claude.testResult {
-            Label(r.message, systemImage: r.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.system(size: 11.5)).foregroundStyle(r.ok ? Color.green : .orange)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        .frame(maxWidth: 360)
+        Text("Automatic answers quick questions on your Mac for free, and sends files and bigger questions to Claude (T3 Code first, then the API).")
+            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
         Divider()
-        Picker("Model", selection: $claude.model) {
-            ForEach(ClaudeModel.allCases) { Text($0.title).tag($0) }
+        engineRow(.onDevice, detail: "Apple's built-in model. Free, private, works offline; best for short questions and short text files.")
+        if !claude.available.contains(.onDevice) {
+            Button("Open Apple Intelligence Settings…") {
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Siri-Settings.extension")!)
+            }
+            .controlSize(.small)
         }
-        .frame(maxWidth: 320)
-        Text(claude.model.blurb).font(.system(size: 11)).foregroundStyle(.secondary)
-        Picker("Answers", selection: $claude.effort) {
-            ForEach(ClaudeEffort.allCases) { Text($0.title).tag($0) }
+
+        Divider()
+        engineRow(.claudeT3, detail: "Uses your Claude plan through T3 Code: each chat is a thread in a \"Notchy\" project in T3 Code, so it shows up there too. No API credits needed.")
+        if claude.available.contains(.claudeT3) {
+            Picker("Model", selection: $claude.t3Model) {
+                ForEach(ClaudeModel.allCases) { Text($0.title).tag($0) }
+            }
+            .frame(maxWidth: 320)
+        } else {
+            Link("Get T3 Code", destination: URL(string: "https://t3.codes")!).font(.system(size: 12))
         }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 320)
-        Text("Quick answers fastest and cheapest; Thorough thinks longer for harder questions.")
-            .font(.system(size: 11)).foregroundStyle(.secondary)
-        Toggle("Let Claude search the web for current answers", isOn: $claude.webSearch)
-        Text("Web searches cost $10 per 1,000 on your Anthropic bill.").font(.system(size: 11)).foregroundStyle(.secondary)
+
+        Divider()
+        engineRow(.claudeAPI, detail: "For people with an Anthropic API key (pay per use, billed by Anthropic). Adds web search with sources.")
+        DisclosureGroup("API key and options") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    SecureField(claude.hasSavedKey ? "Replace your saved API key (sk-ant-…)" : "Paste your API key (sk-ant-…)", text: $keyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { claude.saveKey(keyDraft); keyDraft = "" }
+                    Button("Save") { claude.saveKey(keyDraft); keyDraft = "" }
+                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if claude.hasSavedKey { Button("Remove") { claude.removeKey() } }
+                }
+                HStack(spacing: 10) {
+                    Link("Get an API key", destination: URL(string: "https://platform.claude.com/settings/keys")!).font(.system(size: 12))
+                    Text("Saved in your keychain. An `ant auth login` sign-in or ANTHROPIC_API_KEY also works.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    if claude.available.contains(.claudeAPI) { Button("Test") { claude.testConnection() }.controlSize(.small) }
+                }
+                if let r = claude.testResult {
+                    Label(r.message, systemImage: r.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 11.5)).foregroundStyle(r.ok ? Color.green : .orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Picker("Model", selection: $claude.model) {
+                    ForEach(ClaudeModel.allCases) { Text($0.title).tag($0) }
+                }
+                .frame(maxWidth: 320)
+                Picker("Answers", selection: $claude.effort) {
+                    ForEach(ClaudeEffort.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+                Toggle("Search the web for current answers ($10 per 1,000 searches)", isOn: $claude.webSearch)
+            }
+            .padding(.top, 6)
+        }
+        .font(.system(size: 12))
+
         if !claudeTabOn {
             Divider()
             HStack {
-                Text("The Claude tab is off.").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text("The AI tab is off.").font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
-                Button("Turn On Claude Tab", action: enableClaudeTab)
+                Button("Turn On AI Tab", action: enableAssistantTab)
             }
         }
         Divider()
-        Label("What you ask, and files you drop on Ask Claude, are sent to Anthropic to get an answer. Nothing else in Notchy is.",
-              systemImage: "lock.fill")
-            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        HStack {
+            Label("On-device answers never leave your Mac. With Claude, only what you type in the AI tab and the files you drop on Ask AI are sent to Anthropic.",
+                  systemImage: "lock.fill")
+                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button("Refresh") { claude.refreshAvailability() }.controlSize(.small)
+        }
+    }
+
+    private func engineRow(_ kind: ChatEngineKind, detail: String) -> some View {
+        let on = claude.available.contains(kind)
+        return HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(kind.title).font(.system(size: 13, weight: .semibold))
+                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Label(claude.statusNotes[kind] ?? (on ? "Ready" : "Not set up"),
+                  systemImage: on ? "checkmark.circle.fill" : "circle.dashed")
+                .font(.system(size: 11.5, weight: .medium)).foregroundStyle(on ? Color.green : .secondary)
+                .multilineTextAlignment(.trailing).frame(maxWidth: 230, alignment: .trailing)
+        }
     }
 
     private func group<Content: View>(_ title: String, symbol: String, tint: Color, @ViewBuilder content: () -> Content) -> some View {

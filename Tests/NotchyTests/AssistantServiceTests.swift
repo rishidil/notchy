@@ -40,27 +40,29 @@ final class MockAPI: URLProtocol {
 }
 
 @MainActor
-func makeService(credential: ClaudeCredential? = ClaudeCredential(kind: .apiKey, secret: "sk-ant-test", source: .keychain)) -> ClaudeService {
-    let s = ClaudeService()
+func makeService(credential: ClaudeCredential? = ClaudeCredential(kind: .apiKey, secret: "sk-ant-test", source: .keychain)) -> AssistantService {
+    let s = AssistantService(agents: AgentsService())
     s.resolver = ClaudeCredentialResolver(keychainKey: { credential?.secret }, environment: { [:] }, antToken: { nil })
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockAPI.self]
     s.session = URLSession(configuration: config)
     s.model = .sonnet
     s.webSearch = true
+    s.choice = .claudeAPI
+    s.overrideAvailability(credential == nil ? [] : [.claudeAPI])
     return s
 }
 
 @MainActor
-func waitUntilIdle(_ s: ClaudeService, timeout: TimeInterval = 5) async {
+func waitUntilIdle(_ s: AssistantService, timeout: TimeInterval = 5) async {
     let deadline = Date().addingTimeInterval(timeout)
     try? await Task.sleep(nanoseconds: 20_000_000)
     while s.isStreaming && Date() < deadline { try? await Task.sleep(nanoseconds: 20_000_000) }
 }
 
-@Suite("Claude conversation", .serialized)
+@Suite("Claude API conversation", .serialized)
 @MainActor
-struct ClaudeServiceTests {
+struct AssistantServiceTests {
     @Test func streamsAnAnswerAndKeepsTheConversation() async throws {
         MockAPI.reset([MockAPI.stream(Events.simpleAnswer(["Hello", " there"])), MockAPI.stream(Events.simpleAnswer(["Again"]))])
         let s = makeService()
@@ -74,6 +76,7 @@ struct ClaudeServiceTests {
         #expect(s.messages.count == 2)
         #expect(s.messages[0].text == "Hi Claude")
         #expect(s.messages[1].text == "Hello there")
+        #expect(s.messages[1].engine == .claudeAPI)
         #expect(!s.messages[1].isError)
         #expect(announced == "Hello there")
 
@@ -172,7 +175,7 @@ struct ClaudeServiceTests {
         s.send("Hi")
         await waitUntilIdle(s)
         #expect(s.messages[1].isError)
-        #expect(s.messages[1].text.contains("Connect Claude"))
+        #expect(s.messages[1].text.contains("isn't available"))
         #expect(MockAPI.requests.isEmpty)
     }
 

@@ -2,13 +2,14 @@
 
 **[Website](https://rishidil.github.io/notchy/) · [Download](https://github.com/rishidil/notchy/releases/latest/download/Notchy.dmg)**
 
-![Claude in the notch](website/public/screenshots/claude.webp)
+![The AI tab in the notch](website/public/screenshots/claude.webp)
 
-The AI notch for your Mac. A Dynamic Island with **Claude built in**: ask anything from the top of your screen, drop
-files on the notch to ask about them, and answer your coding agents' approvals and questions without switching apps.
+The AI notch for your Mac. A Dynamic Island with **AI built in**: ask anything from the top of your screen (free
+on-device answers, Claude for the hard stuff), drop files on the notch to ask about them, and answer your coding agents'
+approvals and questions without switching apps.
 Native SwiftUI + AppKit, no dependencies, ~0% CPU at idle.
 
-Hover the notch to expand it. When something's happening, the notch grows a **live activity**: Claude thinking or
+Hover the notch to expand it. When something's happening, the notch grows a **live activity**: the AI thinking or
 searching the web, agents at work, now playing, timers, charging, volume/brightness, upcoming meetings and
 notification previews.
 
@@ -16,7 +17,7 @@ notification previews.
 
 | | |
 | --- | --- |
-| ✳️ **Claude** | Ask Claude from the notch with your own Anthropic account. Streams answers, searches the web (with sources), and reads files you drop on **Ask Claude**: images, PDFs, code and text, even folders. Live activity while it works, a pop-up when the answer's ready |
+| ✳️ **AI** | Ask anything from the notch. Quick questions are answered free on your Mac by Apple's model; files and harder questions go to Claude, through [T3 Code](https://t3.codes) on your own plan or with an API key. Drop files on **Ask AI** to ask about them. Live activity while it works, a pop-up when the answer's ready |
 | ✨ **Agents (T3 Code)** | See, prompt and start your [T3 Code](https://t3.codes) agents, and **approve actions or answer their questions right in the notch**. Live activity while they work, alerts when one finishes or needs you |
 | 🎵 **Now Playing** | Spotify & Apple Music: artwork, equalizer tinted to the album art, play/pause/skip, seekable progress |
 | 🔊 **Volume & brightness HUD** | Bars pop out of the notch. Optionally replaces the system HUD entirely |
@@ -31,7 +32,7 @@ notification previews.
 | ⏳ **Screen Time** | Today's usage and top apps, tracked privately on your Mac |
 | 🔔 **Notification history** | Recent notifications in their own tab |
 | ⬆️ **Automatic updates** | Notchy checks for new versions and updates itself in a few seconds |
-| 🪄 **Drop actions** | Drag files onto the notch from any tab: ask Claude, keep on shelf, AirDrop, compress, copy path or email |
+| 🪄 **Drop actions** | Drag files onto the notch from any tab: ask AI, keep on shelf, AirDrop, compress, copy path or email |
 | 📥 **File shelf** | Hold dropped files, drag them out anywhere later, or AirDrop them |
 | ⚡ **Quick toggles** | Dark Mode, Keep Awake (uses [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) if installed; right-click for durations), Mute, Screenshot, Sleep Display |
 | 🚀 **App shelf** | Your favorite apps one click away (`+` to add, right-click to remove) |
@@ -70,37 +71,55 @@ cd notchy
 Other commands: `./build.sh` (just build into `build/`), `./build.sh run` (build + relaunch from `build/`) and `./build.sh dmg` (make the installer disk image).
 
 
-## Connect Claude
+## AI in the notch
 
-Notchy talks to Claude with **your own Anthropic account**, so you pay Anthropic per use (Notchy adds nothing and
-never sees your key). Claude.ai Pro/Max subscriptions can't be used by other apps; you need an API key.
+The **✳️ AI** tab answers questions from the top of your screen with three engines. Use whichever you have; you don't
+need all of them.
 
-1. Create an API key at **[platform.claude.com → API keys](https://platform.claude.com/settings/keys)** (new accounts
-   need a few dollars of credit under *Billing*).
-2. Notchy ⚙︎ → **Settings → Connections → Claude**, paste the key and click **Save**. It's checked straight away and
-   stored in your Mac's keychain.
-3. Hover the notch and open the **✳️ Claude** tab (on by default for new installs; otherwise switch it on in
-   **Settings → Tabs**).
+| Engine | Cost | Best for | Setup |
+| --- | --- | --- | --- |
+| **On-device** (Apple's built-in model) | Free | Quick questions, rewording, short text files. Private and works offline | macOS 26 with Apple Intelligence turned on. Nothing else |
+| **Claude via T3 Code** | Your Claude plan (no API credits) | Files, harder questions, web lookups | [T3 Code](https://t3.codes) installed, with Claude signed in |
+| **Claude API** | Pay per use, billed by Anthropic | The same, plus web search with sources | An API key from [platform.claude.com](https://platform.claude.com/settings/keys) (or an `ant auth login` sign-in) |
 
-Already use Anthropic's tools? Notchy also picks up an `ant auth login` sign-in or an `ANTHROPIC_API_KEY` set for the
-app, so there's nothing to paste.
+**Automatic** (the default) sends short questions to the on-device model and files or bigger questions to Claude
+(T3 Code first, then the API). Under an on-device answer, **Ask Claude instead** re-asks it with Claude. To always use
+one engine, pick it in **Settings → Connections → AI** or in the menu next to the tab title.
 
 Using it:
 
 - **Ask anything.** Type and press Return. Answers stream in; right-click one to copy it. **New Chat** starts over.
-- **Ask about files.** Drag files onto the notch and drop them on **Ask Claude**. They appear as chips above the
-  text box; ask your question (or just press Return for a summary). Works with images, PDFs, text and code
-  files, and folders (Claude gets a listing of what's inside, not the files themselves).
-- **Web search** is on by default: Claude looks things up when a question needs current information and shows
-  its sources under the answer. Turn it off in Settings or the model menu next to the tab title.
+- **Ask about files.** Drag files onto the notch and drop them on **Ask AI**. They appear as chips above the text box;
+  ask your question, or just press Return for a summary. Claude reads images, PDFs, text and code files, and folders
+  (it gets a listing of what's inside). The on-device model reads short text files only.
 - **Keep working.** Move away and the closed notch shows *"Claude is searching the web · …"* and then the answer as it
   streams; a pop-up tells you when it's done.
-- **Model & style:** Claude Sonnet 5.5 by default (fast and capable). Switch to Opus 5.5 for hard questions or
-  Haiku 5.5 for quick ones, and pick **Quick**, **Balanced** or **Thorough** answers.
-- **From Shortcuts or Raycast:** `notchy://ask?q=What%27s%20on%20my%20mind` opens the tab and asks.
+- **Models:** Claude Sonnet 5.5 by default for both Claude engines, with Opus 5.5 and Haiku 5.5 in Settings.
+- **From Shortcuts or Raycast:** `notchy://ask?q=What%27s%20a%20good%20name%20for%20a%20cat`.
 
-Privacy: only what you type into the Claude tab and the files you drop on **Ask Claude** are sent to Anthropic. Nothing
-else in Notchy (notifications, calendar, screen time, the shelf) is ever sent to Claude.
+### Claude via T3 Code
+
+Each chat becomes a thread in a **"Notchy"** project in T3 Code, so you can reopen or continue it there (and on your
+phone with T3 Connect). It runs on the Claude plan you've signed into T3 Code with, so there are no API credits to buy.
+The chats project is kept out of Notchy's Agents tab. Files you drop on **Ask AI** are copied into
+`~/Library/Application Support/Notchy/Chats/files` so Claude can read them. If Claude needs an approval mid-answer, it
+shows up right in the chat.
+
+Why not just "Sign in with Claude"? Anthropic doesn't allow other apps to offer Claude.ai login or use subscription
+credentials on your behalf. Running chats through the Claude Code that you signed into yourself inside T3 Code, or using
+your own API key, are the supported routes.
+
+### Claude API
+
+Paste a key in **Settings → Connections → AI → API key and options** and click **Save**. It's checked straight away and
+stored in your keychain. An `ant auth login` sign-in or `ANTHROPIC_API_KEY` is picked up automatically. Max, Ultra and
+Team plans include monthly API credits you can link to your Console account
+([details](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers)).
+
+Privacy: on-device answers never leave your Mac. With Claude, only what you type into the AI tab and the files you drop
+on **Ask AI** are sent to Anthropic. Nothing else in Notchy (notifications, calendar, screen time, the shelf) is.
+
+For how it all works under the hood, see the **[developer docs](https://rishidil.github.io/notchy/docs/)**.
 
 ## Connect T3 Code agents
 
@@ -162,7 +181,8 @@ Each feature asks only when needed:
 
 | Feature | Permission | How |
 | --- | --- | --- |
-| Claude | Your Anthropic API key (no macOS permission) | Settings → Connections → Claude |
+| AI (on-device) | Apple Intelligence turned on (macOS 26+) | System Settings → Apple Intelligence & Siri |
+| AI (Claude) | T3 Code signed in to Claude, or an Anthropic API key | Settings → Connections → AI |
 | Calendar | Calendars | Prompted on first launch |
 | Weather | Location (or pick a city in Settings) | Prompted when the Weather tab is on |
 | Bluetooth tab | Bluetooth | Prompted when the Bluetooth tab is on |
@@ -248,7 +268,9 @@ asked for permissions one more time.
 | `FeatureTabs.swift` | Weather, To-Do, Lyrics, Bluetooth, System, Screen Time, Notifications tabs and drop actions |
 | `WeatherService.swift`, `LyricsService.swift`, `BluetoothService.swift`, `SystemMonitor.swift`, `ScreenTimeTracker.swift`, `TodoStore.swift` | The services behind those tabs |
 | `SettingsView.swift` | Settings / first-launch window |
-| `ClaudeService.swift`, `ClaudeAPI.swift`, `ClaudeTab.swift` | Claude: conversation state, Messages API streaming (SSE), web search, attachments, credentials; the tab and live activity |
+| `AssistantService.swift`, `AssistantTab.swift` | The AI tab: conversation, engine choice, attachments, live activity |
+| `ChatEngines.swift` | The three AI engines (on-device, Claude via T3 Code, Claude API) and the router that picks one |
+| `ClaudeAPI.swift` | Messages API requests, SSE stream parsing, web search, attachments, credentials |
 | `AgentsService.swift` | T3 Code agents: `t3` CLI for threads/messages, read-only status and pending requests from T3 Code's database |
 | `T3Remote.swift` | Answers T3 Code approvals/questions over T3 Code's local server API with a scoped token |
 | `Keychain.swift` | Stores the Claude API key and the T3 Code token |
@@ -264,13 +286,16 @@ Automation: `notchy://ask?q=…`, `notchy://open?tab=claude`, `notchy://timer?mi
 
 ```bash
 ./scripts/test.sh                                              # unit tests (offline, ~1s)
+NOTCHY_LIVE_ONDEVICE=1 ./scripts/test.sh                       # + Apple's on-device model
+NOTCHY_LIVE_T3_CHAT=1 ./scripts/test.sh                        # + a real chat through T3 Code (your Claude plan)
 NOTCHY_LIVE_CLAUDE=1 ANTHROPIC_API_KEY=sk-ant-… ./scripts/test.sh   # + real Claude API calls (a few cents)
 NOTCHY_LIVE_T3=1 ./scripts/test.sh                             # + a round trip to the running T3 Code server
 ```
 
 The suite covers request building, the streaming parser (text, thinking, web search, citations, paused turns,
-refusals and fallbacks), attachments, credentials, the conversation flow against a mocked API, and T3 Code's
-request/response format.
+refusals and fallbacks), attachments, credentials, engine routing, the on-device prompt, the API conversation against
+a mocked server, the T3 Code chat engine end to end against a fake `t3` command and database, and T3 Code's
+request/response format. More in the [developer docs](https://rishidil.github.io/notchy/docs/).
 
 ### Limitations
 
@@ -283,8 +308,9 @@ request/response format.
   (or right-click the island → *Always Show Small Logo*) for a tiny logo at the top center. Turn off *Show Music & Timer
   in Menu Bar* to show only pop-ups.
 - **Screen Time** is tallied by Notchy itself from the moment you turn the tab on (macOS has no public Screen Time API).
-- **Claude** needs an Anthropic API key with credit; usage is billed by Anthropic. Answers in the notch are kept for
-  the current chat only (nothing is saved after you quit).
+- **AI:** the on-device model needs macOS 26 with Apple Intelligence, and it's small (about 4,000 tokens of context, no
+  web search). Claude via T3 Code needs T3 Code running; its chats are saved as T3 Code threads. On-device and API
+  chats are kept for the current chat only (nothing is saved after you quit).
 - **Privacy:** notification content, screen time and your files never leave your Mac, except what you choose to send
   to Claude. Weather requests send only
   approximate coordinates to Open-Meteo; lyrics lookups send the song title and artist to LRCLIB.
