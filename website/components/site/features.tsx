@@ -56,13 +56,13 @@ export function Features() {
           <Tabs value={active} onValueChange={setActive} className="gap-8">
             <TabsList
               aria-label="Features"
-              className="mx-auto w-full max-w-full justify-start gap-1.5 overflow-x-auto rounded-full bg-transparent p-0 [scrollbar-width:none] group-data-horizontal/tabs:h-auto md:flex-wrap md:justify-center md:overflow-visible [&::-webkit-scrollbar]:hidden"
+              className="mx-auto flex w-full max-w-full flex-wrap justify-center gap-1.5 rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto"
             >
               {FEATURES.map((f) => (
                 <TabsTrigger
                   key={f.id}
                   value={f.id}
-                  className="h-9 flex-none rounded-full border-white/[0.08] bg-white/[0.02] px-3.5 text-[13px] data-active:border-white/20 data-active:bg-white/[0.09] dark:data-active:border-white/20 dark:data-active:bg-white/[0.09]"
+                  className="h-8 flex-none rounded-full border-white/[0.08] bg-white/[0.02] px-2.5 text-[12px] sm:h-9 sm:px-3.5 sm:text-[13px] data-active:border-white/20 data-active:bg-white/[0.09] dark:data-active:border-white/20 dark:data-active:bg-white/[0.09]"
                 >
                   <f.icon style={{ color: f.color }} />
                   {f.name}
@@ -78,7 +78,7 @@ export function Features() {
               >
                 <div className="relative">
                   <div
-                    className="pointer-events-none absolute -inset-x-10 -inset-y-12 -z-10 opacity-40 blur-3xl"
+                    className="pointer-events-none absolute inset-x-0 -inset-y-12 -z-10 opacity-40 blur-3xl sm:-inset-x-10"
                     style={{
                       background: `radial-gradient(50% 50% at 50% 50%, ${f.color}55, transparent 70%)`,
                     }}

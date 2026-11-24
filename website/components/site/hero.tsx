@@ -81,6 +81,12 @@ export function Hero() {
           style={{ animationDelay: "320ms" }}
         >
           {SITE.requirements}
+          <span className="pointer-coarse:hidden">
+            {" · "}
+            <a href="#first-launch" className="underline-offset-4 hover:text-foreground hover:underline">
+              First time? How to open it
+            </a>
+          </span>
         </p>
       </div>
 

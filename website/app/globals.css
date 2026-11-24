@@ -396,3 +396,14 @@
     opacity: 1;
   }
 }
+
+/* Never let decorative layers make the page wider than the screen (stops sideways dragging on phones),
+   and don't reveal the page edges when over-scrolling. */
+html {
+  background-color: #060608;
+  overflow-x: clip;
+  overscroll-behavior: none;
+}
+body {
+  overflow-x: clip;
+}
