@@ -10,6 +10,7 @@ import {
   Inbox,
   ListTodo,
   MicVocal,
+  Sparkles,
   SunMedium,
   Timer,
   type LucideIcon,
@@ -132,6 +133,17 @@ export const FEATURES: Feature[] = [
     description:
       "Time-synced lyrics for whatever's playing in Spotify or Apple Music, scrolling along with the song.",
     points: ["Synced to playback", "Spotify & Apple Music", "Lyrics from LRCLIB"],
+  },
+  {
+    id: "agents",
+    name: "Agents",
+    screenshot: "agents.webp",
+    icon: Sparkles,
+    color: violet,
+    tagline: "Your AI agents, one glance away.",
+    description:
+      "See your T3 Code agents, prompt them and start new ones from the notch, with a live activity while they work and a heads-up when they need your approval.",
+    points: ["Live activity while agents run", "Reply or start a thread from the notch", "Alerts when an agent finishes or is waiting on you"],
   },
   {
     id: "bluetooth",

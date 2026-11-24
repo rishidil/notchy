@@ -368,7 +368,8 @@ private struct ConnectionsPage: View {
     @EnvironmentObject var vm: NotchViewModel
 
     var body: some View {
-        ConnectionsContent(calendar: vm.calendar, shelf: vm.shelf, files: vm.files, toggles: vm.toggles, music: vm.music)
+        ConnectionsContent(calendar: vm.calendar, shelf: vm.shelf, files: vm.files, toggles: vm.toggles, music: vm.music,
+                           agents: vm.agents, agentsTabOn: vm.isTabEnabled(.agents)) { vm.setTab(.agents, enabled: true) }
     }
 }
 
@@ -378,10 +379,65 @@ private struct ConnectionsContent: View {
     @ObservedObject var files: FileShelf
     @ObservedObject var toggles: SystemToggles
     @ObservedObject var music: MusicController
+    @ObservedObject var agents: AgentsService
+    let agentsTabOn: Bool
+    let enableAgentsTab: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Connections", subtitle: "Accounts, apps and services Notchy works with.")
+
+            group("T3 Code agents", symbol: "sparkles", tint: .purple) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("T3 Code").font(.system(size: 13, weight: .semibold))
+                        Text(agents.isInstalled
+                             ? "See your agents in the notch, prompt them, and get a live activity while they work"
+                             : "Install T3 Code and open it once to connect it")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if agents.isInstalled {
+                        Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 12, weight: .medium))
+                        Button("Open T3 Code") { agents.openInT3(nil) }
+                    } else {
+                        Link("Get T3 Code", destination: URL(string: "https://t3.codes")!).font(.system(size: 12))
+                    }
+                }
+                if agents.isInstalled {
+                    if !agentsTabOn {
+                        Divider()
+                        HStack {
+                            Text("The Agents tab is off.").font(.system(size: 12)).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Turn On Agents Tab", action: enableAgentsTab)
+                        }
+                    }
+                    Divider()
+                    Text("Projects").font(.system(size: 12, weight: .semibold))
+                    if agents.projects.isEmpty {
+                        Text(agentsTabOn ? "No projects found yet." : "Turn on the Agents tab to load your projects.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    ForEach(agents.projects) { p in
+                        HStack {
+                            Image(systemName: "folder.fill").foregroundStyle(.purple)
+                            Text(p.title).font(.system(size: 12))
+                            Text(p.path).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            if agents.extraFolders.contains(p.path) {
+                                Button("Remove") { agents.removeFolder(p.path) }.controlSize(.small)
+                            }
+                        }
+                    }
+                    HStack {
+                        Text("Projects from T3 Code show up automatically. Add a folder if one is missing.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Add Folder…") { agents.addFolder() }.controlSize(.small)
+                    }
+                }
+            }
 
             group("Calendar accounts", symbol: "calendar", tint: .red) {
                 HStack(spacing: 12) {
@@ -640,6 +696,96 @@ private struct PermissionsPage: View {
     }
 }
 
+// MARK: - Updates
+
+private struct UpdatesSection: View {
+    @ObservedObject var updater: UpdateService
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).font(.system(size: 22)).foregroundStyle(tint).frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                    Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+                actionButton
+            }
+            if case .downloading(let p) = updater.state {
+                ProgressView(value: p).progressViewStyle(.linear)
+            }
+            if updater.state == .available, let notes = updater.latest?.notes, !notes.isEmpty {
+                ScrollView {
+                    Text(notes).font(.system(size: 11)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 110)
+            }
+            Divider()
+            Toggle("Check for updates automatically", isOn: $updater.autoCheck).font(.system(size: 12))
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
+    }
+
+    private var title: String {
+        switch updater.state {
+        case .available: "Notchy \(updater.latest?.version ?? "") is available"
+        case .downloading: "Downloading update…"
+        case .installing: "Installing… Notchy will reopen"
+        case .checking: "Checking for updates…"
+        case .upToDate: "You're up to date"
+        case .failed: "Update problem"
+        case .idle: "Notchy \(updater.currentVersion)"
+        }
+    }
+
+    private var subtitle: String {
+        switch updater.state {
+        case .failed(let msg): msg
+        case .available: "You have \(updater.currentVersion). Updating takes a few seconds and keeps your settings and permissions."
+        default:
+            if let d = updater.lastChecked { "Version \(updater.currentVersion) · checked \(d.formatted(.relative(presentation: .named)))" }
+            else { "Version \(updater.currentVersion)" }
+        }
+    }
+
+    private var icon: String {
+        switch updater.state {
+        case .available, .downloading, .installing: "arrow.down.circle.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        default: "checkmark.seal.fill"
+        }
+    }
+
+    private var tint: Color {
+        switch updater.state {
+        case .failed: .orange
+        case .available, .downloading, .installing: .blue
+        default: .green
+        }
+    }
+
+    @ViewBuilder private var actionButton: some View {
+        switch updater.state {
+        case .available:
+            HStack {
+                Button("Release Notes") { updater.openReleasePage() }
+                Button("Update Now") { updater.installUpdate() }.keyboardShortcut(.defaultAction)
+            }
+        case .downloading, .installing, .checking:
+            ProgressView().controlSize(.small)
+        case .failed:
+            HStack {
+                Button("Download from GitHub") { updater.openReleasePage() }
+                Button("Try Again") { updater.check(userInitiated: true) }
+            }
+        default:
+            Button("Check Now") { updater.check(userInitiated: true) }
+        }
+    }
+}
+
 // MARK: - About
 
 private struct AboutPage: View {
@@ -654,10 +800,10 @@ private struct AboutPage: View {
                     Text("A Dynamic Island for your Mac. Free and open source.").foregroundStyle(.secondary)
                 }
             }
+            UpdatesSection(updater: vm.updater)
             VStack(alignment: .leading, spacing: 8) {
                 Link("Website", destination: URL(string: "https://rishidil.github.io/notchy/")!)
                 Link("Source code on GitHub", destination: URL(string: "https://github.com/rishidil/notchy")!)
-                Link("Check for updates", destination: URL(string: "https://github.com/rishidil/notchy/releases/latest")!)
             }
             Text("Weather by Open-Meteo · Lyrics by LRCLIB · Notification content, screen time and your files never leave your Mac.")
                 .font(.system(size: 11.5)).foregroundStyle(.secondary)

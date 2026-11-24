@@ -28,6 +28,7 @@ enum LiveActivity: Equatable {
     case notification(NotificationItem)
     case device(BluetoothService.Device)
     case toast(symbol: String, text: String, tint: Color)
+    case agents(running: Int, waiting: Int)
 }
 
 final class NotchViewModel: ObservableObject {
@@ -35,6 +36,10 @@ final class NotchViewModel: ObservableObject {
     @Published var notchSize = CGSize(width: 185, height: 32)
     @Published var tab: NotchTab = .home { didSet { if tab != oldValue { tabDidChange() } } }
     @Published private(set) var transient: Transient?
+    /// Direction of the latest volume/brightness change (drives the sweep direction) and a counter bumped on every change.
+    @Published private(set) var hudUp = true
+    @Published private(set) var hudPulse = 0
+    private var lastHUDLevels: [HUDKind: Double] = [:]
     @Published private(set) var isDropTargeted = false
     @Published private(set) var dropHover: DropAction?
     /// Forces the drop-actions view on screen (used for screenshots).
@@ -68,6 +73,12 @@ final class NotchViewModel: ObservableObject {
     let bluetooth = BluetoothService()
     let system = SystemMonitor()
     let screenTime = ScreenTimeTracker()
+    let agents = AgentsService()
+    let updater = UpdateService()
+    /// Something to do when the user clicks the current pop-up (e.g. open the update screen).
+    private var actionForTransient: (() -> Void)?
+    /// Tab to open when the user clicks the current pop-up (e.g. an agent finished).
+    private var tabForTransient: NotchTab?
     private let keyTap = MediaKeyTap()
 
     static let spring = Animation.spring(response: 0.42, dampingFraction: 0.8)
@@ -113,6 +124,8 @@ final class NotchViewModel: ObservableObject {
             bluetooth.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             system.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             screenTime.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            agents.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            updater.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(services)
             .receive(on: DispatchQueue.main)
@@ -138,6 +151,17 @@ final class NotchViewModel: ObservableObject {
         }
         notifications.onNotification = { [weak self] item in self?.show(.notification(item), for: 5) }
         bluetooth.onConnect = { [weak self] device in self?.show(.device(device), for: 3.5) }
+        updater.onUpdateAvailable = { [weak self] release in
+            self?.show(.toast(symbol: "arrow.down.circle.fill", text: "Notchy \(release.version) is available · Click to update", tint: .blue),
+                       for: 10, action: { [weak self] in self?.openSettings(page: .about) })
+        }
+        agents.onFinished = { [weak self] t in
+            self?.show(.toast(symbol: "checkmark.circle.fill", text: "Agent finished · \(t.title)", tint: .green), for: 5, tab: .agents)
+        }
+        agents.onNeedsInput = { [weak self] t in
+            self?.show(.toast(symbol: "hand.raised.fill", text: "T3 is waiting for your approval · \(t.title)", tint: .orange), for: 8, tab: .agents)
+            NSSound(named: "Tink")?.play()
+        }
         keyTap.handler = { [weak self] key, fine, isDown, isRepeat in
             self?.handleMediaKey(key, fine: fine, isDown: isDown, isRepeat: isRepeat) ?? false
         }
@@ -207,6 +231,7 @@ final class NotchViewModel: ObservableObject {
         isTabEnabled(.weather) ? weather.start() : weather.stop()
         isTabEnabled(.bluetooth) ? bluetooth.start() : bluetooth.stop()
         isTabEnabled(.screenTime) ? screenTime.start() : screenTime.stop()
+        isTabEnabled(.agents) ? agents.start() : agents.stop()
         lyrics.isEnabled = isTabEnabled(.lyrics) || lyricsInNotch
         notifications.historyEnabled = isTabEnabled(.notifications)
         updateSystemMonitor()
@@ -214,6 +239,7 @@ final class NotchViewModel: ObservableObject {
 
     private func tabDidChange() {
         updateSystemMonitor()
+        agents.setVisible(isExpanded && tab == .agents)
         guard isExpanded else { return }
         if tab == .weather { weather.refreshIfStale() }
         if tab == .bluetooth { bluetooth.refreshDetails() }
@@ -249,6 +275,10 @@ final class NotchViewModel: ObservableObject {
         // Without a notch, persistent activities sit in the menu bar; the user can turn that off.
         if !hasNotch && !showMenuBarActivities { return .none }
         if timer.isActive { return .timer }
+        // Agents working in the background are a live activity (like T3 Code's on iOS), ahead of music.
+        if isTabEnabled(.agents) && (agents.runningCount > 0 || agents.attentionCount > 0) {
+            return .agents(running: agents.runningCount, waiting: agents.attentionCount)
+        }
         if music.isPlaying && music.hasTrack { return .music }
         if let e = calendar.nextEvent {
             let minutes = Int(ceil(e.start.timeIntervalSinceNow / 60))
@@ -260,7 +290,19 @@ final class NotchViewModel: ObservableObject {
     /// Show the current lyric line under the notch while music plays.
     var showsLyricLine: Bool { lyricsInNotch && activity == .music && lyrics.state == .synced }
 
-    var expandedSize: CGSize { CGSize(width: 640, height: notchSize.height + 162) }
+    var expandedSize: CGSize { CGSize(width: expandedWidth, height: notchSize.height + 162) }
+
+    // MARK: Header layout (tabs either side of the notch, battery + ⚙︎ always visible on the right)
+
+    var headerTabWidth: CGFloat { tabs.count > 9 ? 25 : (tabs.count > 7 ? 27 : 30) }
+    /// Space reserved on the right of the header for the battery readout and the gear.
+    static let headerTrailingReserve: CGFloat = 96
+    /// The island grows a little wider when many tabs are on, instead of hiding the battery.
+    var expandedWidth: CGFloat {
+        let slot = headerTabWidth + 2
+        let side = ceil((CGFloat(tabs.count) * slot + Self.headerTrailingReserve) / 2) + slot // room for both groups
+        return min(740, max(640, notchSize.width + 2 * (side + 34)))
+    }
     var sideWidth: CGFloat { notchSize.height + 14 }
 
     /// Small always-visible box to the left of the notch, so there's something to aim for when idle.
@@ -282,6 +324,7 @@ final class NotchViewModel: ObservableObject {
         case .toast: return CGSize(width: max(wide, 360), height: n.height + 34)
         case .device: return CGSize(width: max(wide, 300), height: n.height + 30)
         case .music where showsLyricLine: return CGSize(width: max(wide, 380), height: n.height + 26)
+        case .agents: return CGSize(width: max(wide, 340), height: n.height + 26)
         default: return CGSize(width: wide, height: n.height)
         }
     }
@@ -344,10 +387,14 @@ final class NotchViewModel: ObservableObject {
         withAnimation(Self.spring) { isExpanded = true }
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         guard !isDemoMode else { return }
-        music.refresh()
-        calendar.refresh()
-        toggles.refreshKeepAwake()
-        tabDidChange()
+        // Refresh once the open animation has finished, so the work (and the redraws it causes) can't make it stutter.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            guard let self, self.isExpanded else { return }
+            self.music.refresh()
+            self.calendar.refresh()
+            self.toggles.refreshKeepAwake()
+            self.tabDidChange()
+        }
     }
 
     func collapse() {
@@ -364,20 +411,42 @@ final class NotchViewModel: ObservableObject {
         case .timerDone:
             dismissTransient()
         default:
+            if transient != nil, let action = actionForTransient {
+                actionForTransient = nil
+                dismissTransient()
+                action()
+                return
+            }
+            if let t = tabForTransient, isTabEnabled(t) {
+                tab = t
+                dismissTransient()
+            }
             expand()
         }
     }
 
     // MARK: Transients
 
-    func show(_ t: Transient, for seconds: Double) {
+    func show(_ t: Transient, for seconds: Double, tab: NotchTab? = nil, action: (() -> Void)? = nil) {
         Self.log.info("show transient: \(String(describing: t), privacy: .private)")
+        tabForTransient = tab
+        actionForTransient = action
         withAnimation(Self.spring) { transient = t }
         scheduleTransientDismiss(after: seconds)
     }
 
     /// Volume/brightness feedback: brief pop-up when closed; when open, the level line lingers a little longer.
-    func showHUD(_ kind: HUDKind) {
+    func showHUD(_ kind: HUDKind, up: Bool? = nil) {
+        let level = hudLevel(kind)
+        if let up {
+            hudUp = up
+        } else if let old = lastHUDLevels[kind], abs(level - old) > 0.001 {
+            hudUp = level > old
+        } else if up == nil, lastHUDLevels[kind].map({ abs(level - $0) <= 0.001 }) == true {
+            return // a duplicate notification for a change we've already shown
+        }
+        lastHUDLevels[kind] = level
+        hudPulse &+= 1
         show(.hud(kind), for: isExpanded ? 2.5 : 1.6)
     }
 
@@ -483,13 +552,13 @@ final class NotchViewModel: ObservableObject {
             case .volumeDown: volume.step(up: false, fine: fine)
             default: if !isRepeat { volume.toggleMute() }
             }
-            showHUD(.volume)
+            showHUD(.volume, up: key == .mute ? !volume.muted : key == .volumeUp)
             return true
         case .brightnessUp, .brightnessDown:
             guard brightness.canSet else { return false }
             guard isDown else { return true }
             brightness.step(up: key == .brightnessUp, fine: fine)
-            showHUD(.brightness)
+            showHUD(.brightness, up: key == .brightnessUp)
             return true
         }
     }
@@ -580,6 +649,8 @@ final class NotchViewModel: ObservableObject {
             openSettings(welcome: q("welcome") == "1", page: q("page").flatMap(SettingsPage.init(rawValue:)) ?? .tabs)
         case "timer":
             if let m = q("minutes").flatMap(Double.init) { timer.start(seconds: m * 60) }
+        case "update":
+            if q("install") == "1" { updater.checkAndInstall() } else { updater.check(userInitiated: true); openSettings(page: .about) }
         case "pomodoro":
             timer.startPomodoro()
         case "demo":

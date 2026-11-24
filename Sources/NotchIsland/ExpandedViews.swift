@@ -21,6 +21,7 @@ struct ExpandedView: View {
                     case .weather: WeatherTab(weather: vm.weather)
                     case .todo: TodoTab(todos: vm.todos)
                     case .lyrics: LyricsTab(lyrics: vm.lyrics, music: vm.music)
+                    case .agents: AgentsTab(agents: vm.agents)
                     case .bluetooth: BluetoothTab(bluetooth: vm.bluetooth)
                     case .system: SystemTab(system: vm.system, battery: vm.battery)
                     case .screenTime: ScreenTimeTab(tracker: vm.screenTime)
@@ -52,14 +53,15 @@ struct HeaderBar: View {
         // Tabs fill the space left of the notch first, then continue on the right.
         // With many tabs, slim them down and drop the battery readout (it's also in the System tab).
         let tabs = vm.tabs
-        let w: CGFloat = tabs.count > 9 ? 25 : (tabs.count > 7 ? 27 : 30)
+        let w = vm.headerTabWidth
         let side = (vm.expandedSize.width - vm.notchSize.width) / 2 - 34
-        let leftCount = min(tabs.count, max(1, Int(side / (w + 2))))
+        let rightCapacity = max(0, Int((side - NotchViewModel.headerTrailingReserve) / (w + 2)))
+        let leftCount = min(tabs.count, max(1, max(Int(side / (w + 2)), tabs.count - rightCapacity)))
         HStack(spacing: 8) {
             tabGroup(Array(tabs.prefix(leftCount)), width: w)
             Spacer(minLength: vm.notchSize.width + 24)
             if tabs.count > leftCount { tabGroup(Array(tabs.dropFirst(leftCount)), width: w) }
-            if tabs.count <= 9 { BatteryBadge(battery: vm.battery, compact: tabs.count > 7).fixedSize() }
+            BatteryBadge(battery: vm.battery).fixedSize()
             Button { vm.openSettings() } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 13))
@@ -98,6 +100,8 @@ struct HeaderBar: View {
         case .shelf: vm.files.items.isEmpty ? nil : .blue
         case .todo: vm.todos.remaining > 0 ? .green : nil
         case .lyrics: vm.lyrics.state == .synced ? .pink : nil
+        case .agents: vm.agents.attentionCount > 0 ? .orange : (vm.agents.runningCount > 0 ? .green
+            : (vm.agents.threads.contains(where: \.isUnreadDone) ? .blue : nil))
         default: nil
         }
         if let color {

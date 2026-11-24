@@ -46,7 +46,7 @@ export function Features() {
           eyebrow="Features"
           title={
             <>
-              One notch. <span className="text-brand">Thirteen superpowers.</span>
+              One notch. <span className="text-brand">Fourteen superpowers.</span>
             </>
           }
           description="Hover the notch to expand it. When something's happening, it grows a live activity — then gets out of your way."

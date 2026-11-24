@@ -79,6 +79,7 @@ final class CalendarService: ObservableObject {
     @Published private(set) var denied = false
 
     private let store = EKEventStore()
+    private let fetchQueue = DispatchQueue(label: "notchy.calendar", qos: .userInitiated)
     private var observer: NSObjectProtocol?
     private var timer: Timer?
     private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
@@ -143,27 +144,38 @@ final class CalendarService: ObservableObject {
         updateStatus()
         guard authorized else { nextEvent = nil; agenda = []; return }
 
-        let all = store.calendars(for: .event)
-        calendars = all.map { CalendarInfo(id: $0.calendarIdentifier, title: $0.title, source: $0.source?.title ?? "Other", color: $0.color) }
-            .sorted { ($0.source, $0.title) < ($1.source, $1.title) }
-        let included = all.filter { !excluded.contains($0.calendarIdentifier) }
-        guard !included.isEmpty else { nextEvent = nil; agenda = []; return }
-
-        let now = Date()
-        let startOfToday = Calendar.current.startOfDay(for: now)
-        let end = Calendar.current.date(byAdding: .day, value: 2, to: startOfToday) ?? now.addingTimeInterval(48 * 3600)
-        let predicate = store.predicateForEvents(withStart: startOfToday, end: end, calendars: included)
-        let events = store.events(matching: predicate)
-            .filter { $0.endDate > now }
-            .sorted { $0.startDate < $1.startDate }
-            .map { e in
-                EventInfo(id: (e.eventIdentifier ?? UUID().uuidString) + "\(e.startDate.timeIntervalSince1970)",
-                          title: e.title ?? "Untitled", start: e.startDate, end: e.endDate, isAllDay: e.isAllDay,
-                          color: e.calendar?.color, location: e.location?.isEmpty == false ? e.location : nil,
-                          meetingURL: Self.meetingURL(e))
+        // Fetch off the main thread (EventKit queries and link detection in event notes are slow),
+        // and only publish real changes so the island doesn't redraw for nothing.
+        let excludedNow = excluded
+        fetchQueue.async { [weak self] in
+            guard let self else { return }
+            let all = self.store.calendars(for: .event)
+            let infos = all.map { CalendarInfo(id: $0.calendarIdentifier, title: $0.title, source: $0.source?.title ?? "Other", color: $0.color) }
+                .sorted { ($0.source, $0.title) < ($1.source, $1.title) }
+            let included = all.filter { !excludedNow.contains($0.calendarIdentifier) }
+            var events: [EventInfo] = []
+            if !included.isEmpty {
+                let now = Date()
+                let startOfToday = Calendar.current.startOfDay(for: now)
+                let end = Calendar.current.date(byAdding: .day, value: 2, to: startOfToday) ?? now.addingTimeInterval(48 * 3600)
+                let predicate = self.store.predicateForEvents(withStart: startOfToday, end: end, calendars: included)
+                events = self.store.events(matching: predicate)
+                    .filter { $0.endDate > now }
+                    .sorted { $0.startDate < $1.startDate }
+                    .map { e in
+                        EventInfo(id: (e.eventIdentifier ?? UUID().uuidString) + "\(e.startDate.timeIntervalSince1970)",
+                                  title: e.title ?? "Untitled", start: e.startDate, end: e.endDate, isAllDay: e.isAllDay,
+                                  color: e.calendar?.color, location: e.location?.isEmpty == false ? e.location : nil,
+                                  meetingURL: Self.meetingURL(e))
+                    }
             }
-        agenda = events
-        nextEvent = events.first { !$0.isAllDay }
+            let next = events.first { !$0.isAllDay }
+            DispatchQueue.main.async {
+                if self.calendars != infos { self.calendars = infos }
+                if self.agenda != events { self.agenda = events }
+                if self.nextEvent != next { self.nextEvent = next }
+            }
+        }
     }
 
     func setCalendar(_ id: String, included: Bool) {

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Every tab the expanded island can show. Which ones appear (and in what order) is chosen in Settings.
 enum NotchTab: String, CaseIterable, Identifiable, Codable {
-    case home, calendar, timer, weather, todo, lyrics, shelf, bluetooth, system, screenTime, notifications
+    case home, calendar, timer, weather, todo, lyrics, agents, shelf, bluetooth, system, screenTime, notifications
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
         case .weather: "cloud.sun.fill"
         case .todo: "checklist"
         case .lyrics: "quote.bubble.fill"
+        case .agents: "sparkles"
         case .shelf: "tray.full.fill"
         case .bluetooth: "headphones"
         case .system: "gauge.with.dots.needle.67percent"
@@ -32,6 +33,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
         case .weather: "Weather"
         case .todo: "To-Do"
         case .lyrics: "Lyrics"
+        case .agents: "Agents (T3 Code)"
         case .shelf: "File Shelf"
         case .bluetooth: "Bluetooth"
         case .system: "System Monitor"
@@ -48,6 +50,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
         case .weather: "Current conditions and the forecast for where you are"
         case .todo: "A quick to-do list, always one hover away"
         case .lyrics: "Synced lyrics for whatever's playing in Spotify or Music"
+        case .agents: "See, prompt and start your T3 Code agents"
         case .shelf: "Drop files on the notch to hold them, drag them out later"
         case .bluetooth: "Connected devices, battery levels and one-click connect"
         case .system: "CPU, memory, network and disk at a glance"
@@ -64,6 +67,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
         case .weather: .cyan
         case .todo: .green
         case .lyrics: .pink
+        case .agents: .purple
         case .shelf: .indigo
         case .bluetooth: .blue
         case .system: .mint

@@ -77,8 +77,10 @@ struct NotchRootView: View {
         .frame(width: vm.shapeSize.width, height: vm.shapeSize.height)
         .coordinateSpace(name: "island")
         .clipShape(shape)
+        // Shadow drawn from a plain shape behind the island (shadowing the clipped content forced an
+        // offscreen render of everything on every animation frame).
+        .background(shape.fill(Color.black).shadow(color: .black.opacity(raised ? 0.5 : 0), radius: 16, y: 6))
         .contentShape(shape)
-        .shadow(color: .black.opacity(raised ? 0.5 : 0), radius: 16, y: 6)
         .opacity(vm.isHiddenIdle ? 0 : 1)
         .offset(x: vm.bodyOffsetX)
         .onTapGesture { vm.handleTap() }
@@ -188,6 +190,10 @@ struct CollapsedView: View {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(tint)
+        case .agents(_, let waiting):
+            Image(systemName: waiting > 0 ? "hand.raised.fill" : "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(waiting > 0 ? .orange : .purple)
         case .notification, .none:
             EmptyView()
         }
@@ -223,6 +229,11 @@ struct CollapsedView: View {
             if let level = d.battery?.lowest { BatteryRing(level: level) } else { EmptyView() }
         case .toast:
             EmptyView()
+        case .agents(let running, let waiting):
+            HStack(spacing: 3) {
+                Circle().fill(waiting > 0 ? .orange : .green).frame(width: 5, height: 5)
+                Text("\(waiting > 0 ? waiting : running)").font(.system(size: 12, weight: .semibold).monospacedDigit())
+            }
         case .notification, .none:
             EmptyView()
         }
@@ -259,6 +270,8 @@ struct CollapsedView: View {
                 Text("Connected").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
             }
             .frame(height: 24)
+        case .agents(let running, _):
+            AgentsLiveRow(agents: vm.agents, running: running)
         case .music where vm.showsLyricLine:
             TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
                 Text(vm.lyrics.line(at: vm.music.position(at: ctx.date)) ?? "♪")
@@ -310,7 +323,13 @@ extension NotchViewModel {
 struct ExpandedHUDOverlay: View {
     let kind: HUDKind
     @EnvironmentObject var vm: NotchViewModel
-    @State private var sweep: CGFloat = -1
+
+    private struct Sweep: Identifiable {
+        let id = UUID()
+        let up: Bool
+    }
+    /// Each press gets its own band that always travels the full width; quick presses just overlap.
+    @State private var sweeps: [Sweep] = []
     @State private var lastSweep = Date.distantPast
 
     var body: some View {
@@ -319,17 +338,9 @@ struct ExpandedHUDOverlay: View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack(alignment: .bottomLeading) {
-                // Sweep across the whole tab
-                LinearGradient(stops: [.init(color: .clear, location: 0),
-                                       .init(color: tint.opacity(0.16), location: 0.3),
-                                       .init(color: .white.opacity(0.32), location: 0.5),
-                                       .init(color: tint.opacity(0.16), location: 0.7),
-                                       .init(color: .clear, location: 1)],
-                               startPoint: .leading, endPoint: .trailing)
-                    .frame(width: w * 0.6, height: h * 1.6)
-                    .rotationEffect(.degrees(14))
-                    .offset(x: sweep * w, y: h * 0.3)
-                    .blendMode(.plusLighter)
+                ForEach(sweeps) { s in
+                    SweepBand(up: s.up, tint: tint, size: geo.size)
+                }
 
                 // Level line along the bottom edge
                 ZStack(alignment: .leading) {
@@ -346,19 +357,89 @@ struct ExpandedHUDOverlay: View {
             .frame(width: w, height: h, alignment: .bottomLeading)
         }
         .allowsHitTesting(false)
-        .onAppear(perform: runSweep)
-        .onChange(of: level) { _, _ in runSweep() }
+        .onAppear(perform: addSweep)
+        .onChange(of: vm.hudPulse) { _, _ in addSweep() }
     }
 
-    /// One sweep per key press, but at most every ~0.45s so holding a key doesn't make it stutter.
-    private func runSweep() {
-        guard Date().timeIntervalSince(lastSweep) > 0.45 else { return }
+    /// Up = left → right, down = right → left. While a key is held (auto-repeat), add a band at most every 0.3s.
+    private func addSweep() {
+        let up = vm.hudUp
+        if let last = sweeps.last, last.up == up, Date().timeIntervalSince(lastSweep) < 0.3 { return }
         lastSweep = Date()
-        sweep = -0.6
-        withAnimation(.easeOut(duration: 0.7)) { sweep = 1.1 }
+        let sweep = Sweep(up: up)
+        sweeps.append(sweep)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            sweeps.removeAll { $0.id == sweep.id }
+        }
     }
 }
 
+/// One band of light that crosses the panel once, starting at the edge it enters from.
+private struct SweepBand: View {
+    let up: Bool
+    let tint: Color
+    let size: CGSize
+    @State private var x: CGFloat
+
+    init(up: Bool, tint: Color, size: CGSize) {
+        self.up = up
+        self.tint = tint
+        self.size = size
+        _x = State(initialValue: up ? -0.6 : 1.1)
+    }
+
+    var body: some View {
+        LinearGradient(stops: [.init(color: .clear, location: 0),
+                               .init(color: tint.opacity(0.16), location: 0.3),
+                               .init(color: .white.opacity(0.32), location: 0.5),
+                               .init(color: tint.opacity(0.16), location: 0.7),
+                               .init(color: .clear, location: 1)],
+                       startPoint: .leading, endPoint: .trailing)
+            .frame(width: size.width * 0.6, height: size.height * 1.6)
+            .rotationEffect(.degrees(up ? 14 : -14))
+            .offset(x: x * size.width, y: size.height * 0.3)
+            .blendMode(.plusLighter)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.7)) { x = up ? 1.1 : -0.6 }
+            }
+    }
+}
+
+
+/// "Fix the login bug · Working · 3m" under the notch while T3 Code agents run.
+struct AgentsLiveRow: View {
+    @ObservedObject var agents: AgentsService
+    let running: Int
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { ctx in
+            HStack(spacing: 6) {
+                if let w = agents.waitingThreads.first {
+                    Text("T3 is waiting for your approval").font(.system(size: 12, weight: .semibold)).foregroundStyle(.orange).fixedSize()
+                    Text("· \(agents.waitingThreads.count > 1 ? "\(agents.waitingThreads.count) threads" : w.title)")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                } else if running == 1, let t = agents.runningThreads.first {
+                    Text(t.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Text("· Working\(elapsed(t, now: ctx.date))")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).fixedSize()
+                } else {
+                    Text("\(running) agents working").font(.system(size: 12, weight: .semibold))
+                    if let p = Set(agents.runningThreads.map(\.projectTitle)).sorted().first {
+                        Text("· \(p)").font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 22)
+        }
+    }
+
+    private func elapsed(_ t: AgentsService.AgentThread, now: Date) -> String {
+        guard let since = agents.runningSince[t.id] else { return "" }
+        let m = Int(now.timeIntervalSince(since) / 60)
+        return m < 1 ? "" : (m < 60 ? " · \(m)m" : " · \(m / 60)h \(m % 60)m")
+    }
+}
 
 /// Small circular battery gauge (Bluetooth devices).
 struct BatteryRing: View {
@@ -412,17 +493,74 @@ struct NotificationBanner: View {
     }
 }
 
-struct EqualizerView: View {
+/// Bouncing bars for "now playing". Runs as Core Animation in the window server, so it costs
+/// the app almost nothing (a SwiftUI animation here re-laid-out the whole island every frame).
+struct EqualizerView: NSViewRepresentable {
     var color: Color = .white
 
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.3)) { ctx in
-            HStack(alignment: .center, spacing: 2) {
-                ForEach(0..<4, id: \.self) { _ in
-                    Capsule().fill(color).frame(width: 2.5, height: .random(in: 4...14))
-                }
-            }
-            .animation(.easeInOut(duration: 0.3), value: ctx.date)
+    func makeNSView(context: Context) -> EqualizerLayerView { EqualizerLayerView() }
+    func updateNSView(_ view: EqualizerLayerView, context: Context) { view.color = NSColor(color) }
+}
+
+final class EqualizerLayerView: NSView {
+    private var bars: [CALayer] = []
+    private static let durations: [CFTimeInterval] = [0.42, 0.55, 0.36, 0.5]
+    private static let lows: [CGFloat] = [0.3, 0.45, 0.25, 0.4]
+
+    var color: NSColor = .white {
+        didSet { bars.forEach { $0.backgroundColor = color.cgColor } }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        for _ in 0..<4 {
+            let bar = CALayer()
+            bar.backgroundColor = color.cgColor
+            bar.cornerRadius = 1.25
+            layer?.addSublayer(bar)
+            bars.append(bar)
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: 18, height: 14) }
+
+    override func layout() {
+        super.layout()
+        let w: CGFloat = 2.5, gap: CGFloat = 2
+        let total = CGFloat(bars.count) * w + CGFloat(bars.count - 1) * gap
+        var x = (bounds.width - total) / 2
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for bar in bars {
+            bar.bounds = CGRect(x: 0, y: 0, width: w, height: bounds.height)
+            bar.position = CGPoint(x: x + w / 2, y: bounds.midY)
+            x += w + gap
+        }
+        CATransaction.commit()
+        startAnimating()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        startAnimating()
+    }
+
+    private func startAnimating() {
+        guard window != nil else { return }
+        for (i, bar) in bars.enumerated() where bar.animation(forKey: "bounce") == nil {
+            let a = CABasicAnimation(keyPath: "transform.scale.y")
+            a.fromValue = Self.lows[i]
+            a.toValue = 1.0
+            a.duration = Self.durations[i]
+            a.autoreverses = true
+            a.repeatCount = .infinity
+            a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            a.timeOffset = Double(i) * 0.13
+            a.isRemovedOnCompletion = false
+            bar.add(a, forKey: "bounce")
         }
     }
 }

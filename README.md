@@ -25,6 +25,8 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 | 📊 **System monitor** | CPU, memory, network and disk with live graphs |
 | ⏳ **Screen Time** | Today's usage and top apps, tracked privately on your Mac |
 | 🔔 **Notification history** | Recent notifications in their own tab |
+| ✨ **Agents (T3 Code)** | See, prompt and start your [T3 Code](https://t3.codes) agents; live activity while they work, alerts when one finishes or is waiting for your approval |
+| ⬆️ **Automatic updates** | Notchy checks for new versions and updates itself in a few seconds |
 | 🪄 **Drop actions** | Drag files onto the notch: keep on shelf, AirDrop, compress, copy path or email |
 | 📥 **File shelf** | Hold dropped files, drag them out anywhere later, or AirDrop them |
 | ⚡ **Quick toggles** | Dark Mode, Keep Awake (uses [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) if installed; right-click for durations), Mute, Screenshot, Sleep Display |
@@ -63,6 +65,44 @@ cd notchy
 
 Other commands: `./build.sh` (just build into `build/`), `./build.sh run` (build + relaunch from `build/`) and `./build.sh dmg` (make the installer disk image).
 
+
+## Connect T3 Code agents
+
+Notchy can show your [T3 Code](https://t3.codes) agents in the notch.
+
+1. **Install T3 Code** and open it once. That installs the `t3` command Notchy uses (`~/.local/bin/t3`).
+   If it's missing, open T3 Code again, or run `t3 install` from T3 Code's terminal.
+2. **Add your projects in T3 Code** as usual.
+3. **Turn on the tab:** Notchy ⚙︎ → **Settings → Tabs** → switch on **Agents (T3 Code)**
+   (or **Settings → Connections → T3 Code → Turn On Agents Tab**).
+4. Check **Settings → Connections → T3 Code**: it should say *Connected* and list your projects. If a project is missing,
+   click **Add Folder…** and choose its folder.
+
+What you get:
+
+- **Agents tab:** every thread across your projects, sorted by *Waiting for your approval*, *Working*, *Done*
+  (not yet reviewed), then the rest. Click one to see its latest replies and send a message; a busy agent gets it as its
+  next turn. **+ New** starts an agent in any project. **Open in T3** jumps to the project in the desktop app.
+- **Live activity:** while agents run, the closed notch shows *"Fix the login bug · Working · 3m"* (or
+  *"2 agents working"*). When an agent needs you it turns orange: *"T3 is waiting for your approval"*.
+- **Pop-ups** when an agent finishes or starts waiting. Click one to open the Agents tab.
+
+Good to know:
+
+- **Approvals happen in T3 Code.** Its command-line tool can't approve actions, so Notchy tells you and **Review in T3**
+  takes you there.
+- **Private and light.** Notchy calls T3 Code's own `t3 thread list/show/send/start` commands, and reads thread
+  status and project folders from T3 Code's local database (read-only) so it can react instantly without polling the CLI.
+  Nothing leaves your Mac.
+- If a T3 Code update changes its database, Notchy falls back to the CLI automatically.
+
+## Updates
+
+From version 1.3, Notchy updates itself. It checks GitHub once a day (turn this off in **Settings → About**), shows
+*"Notchy 1.x is available"* in the notch, and updates in a few seconds when you click it, keeping your settings and
+permissions. Before installing, it verifies the download is signed with the same certificate as the app you're running.
+
+> Coming from 1.2.1 or earlier? Download 1.3 once from the website; after that, updates are automatic.
 
 ## Permissions
 
@@ -118,6 +158,27 @@ rm /tmp/nid.key /tmp/nid.p12 /tmp/nid.pem /tmp/nid.cnf
 
 After the first build signed this way, grant permissions one last time; they'll stick from then on.
 
+## Releasing (signed & notarized)
+
+Builds from `./build.sh dmg` aren't signed with an Apple Developer ID, so macOS shows *"Apple could not verify…"*
+and people have to click **Open Anyway**. For a download that opens with no warnings:
+
+1. Join the [Apple Developer Program](https://developer.apple.com/programs/) ($99/year).
+2. Create a **Developer ID Application** certificate: Xcode → Settings → Accounts → your team → Manage Certificates → **+**.
+3. Create an [app-specific password](https://account.apple.com) for your Apple Account, then save notarization
+   credentials once (you'll be asked for that password):
+   ```bash
+   xcrun notarytool store-credentials notchy --apple-id "you@example.com" --team-id "YOURTEAMID"
+   ```
+4. Build, sign, notarize and staple in one step:
+   ```bash
+   ./build.sh release
+   ```
+   Then upload `build/Notchy.dmg` to a GitHub release.
+
+Switching from the self-signed build to a Developer ID build changes the app's signature, so existing users are
+asked for permissions one more time.
+
 ## How it works
 
 | File | Purpose |
@@ -134,6 +195,8 @@ After the first build signed this way, grant permissions one last time; they'll 
 | `FeatureTabs.swift` | Weather, To-Do, Lyrics, Bluetooth, System, Screen Time, Notifications tabs and drop actions |
 | `WeatherService.swift`, `LyricsService.swift`, `BluetoothService.swift`, `SystemMonitor.swift`, `ScreenTimeTracker.swift`, `TodoStore.swift` | The services behind those tabs |
 | `SettingsView.swift` | Settings / first-launch window |
+| `AgentsService.swift` | T3 Code agents: `t3` CLI for threads/messages, read-only status from T3 Code's database |
+| `UpdateService.swift` | In-app updates from GitHub Releases, with signature verification |
 | `DemoData.swift` | Sample data for screenshots (`--demo`; nothing saved) |
 | `website/` | The Next.js + shadcn/ui website (deployed to GitHub Pages) |
 

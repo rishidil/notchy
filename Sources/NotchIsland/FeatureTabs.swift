@@ -84,7 +84,19 @@ struct WeatherTab: View {
         case .failed(let msg) where weather.current == nil:
             EmptyTabMessage(symbol: "cloud.fill", title: msg, button: "Try Again") { weather.refresh() }
         default:
-            if let c = weather.current { content(c) } else { ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity) }
+            if let c = weather.current { content(c) } else {
+                VStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(weather.manualPlace == nil ? "Finding your location…" : "Loading the forecast…")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
+                    if weather.manualPlace == nil {
+                        Text("If macOS asked for your location, allow it, or pick a city instead.")
+                            .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.45))
+                        PillButton(title: "Choose a City") { vm.openSettings(page: .features) }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 
@@ -604,5 +616,213 @@ struct DropActionsView: View {
         .background(GeometryReader { geo in
             Color.clear.preference(key: DropFramesKey.self, value: [a: geo.frame(in: .named("island"))])
         })
+    }
+}
+
+// MARK: - Agents (T3 Code)
+
+struct AgentsTab: View {
+    @ObservedObject var agents: AgentsService
+    @State private var draft = ""
+    @State private var newIn: AgentsService.Project?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        if !agents.isInstalled {
+            EmptyTabMessage(symbol: "sparkles", title: "T3 Code isn't set up",
+                            subtitle: "Install T3 Code and open it once, so its t3 command is available.",
+                            button: "Get T3 Code") { NSWorkspace.shared.open(URL(string: "https://t3.codes")!) }
+        } else if !agents.loaded {
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if agents.projects.isEmpty {
+            EmptyTabMessage(symbol: "folder.badge.plus", title: "No T3 Code projects found",
+                            subtitle: "Add a project in T3 Code, or add its folder in Settings → Connections.",
+                            button: "Open T3 Code") { agents.openInT3(nil) }
+        } else {
+            HStack(alignment: .top, spacing: 14) {
+                threadList.frame(width: 236)
+                Rectangle().fill(.white.opacity(0.08)).frame(width: 1)
+                detail.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }
+    }
+
+    // MARK: List
+
+    private var threadList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Agents").font(.system(size: 13, weight: .semibold))
+                if agents.runningCount > 0 {
+                    Text("\(agents.runningCount) working").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.green)
+                }
+                Spacer()
+                Menu {
+                    ForEach(agents.projects) { p in
+                        Button(p.title) { newIn = p; draft = ""; focused = true }
+                    }
+                } label: {
+                    Label("New", systemImage: "plus").font(.system(size: 11, weight: .semibold))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+            }
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 3) {
+                    if agents.threads.isEmpty {
+                        Text("No threads yet. Start one with + New.").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+                            .padding(.top, 8)
+                    }
+                    ForEach(agents.threads) { t in row(t) }
+                }
+            }
+        }
+    }
+
+    private func row(_ t: AgentsService.AgentThread) -> some View {
+        let selected = newIn == nil && agents.selectedID == t.id
+        return Button {
+            newIn = nil
+            agents.selectedID = t.id
+        } label: {
+            HStack(spacing: 8) {
+                statusDot(t)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(t.title).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+                    Text("\(t.projectTitle) · \(statusText(t))")
+                        .font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8).frame(height: 32)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(selected ? 0.12 : 0.04)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private func statusDot(_ t: AgentsService.AgentThread) -> some View {
+        let color: Color = t.needsAttention ? .orange : t.isRunning ? .green : t.isFailed ? .red
+            : t.isUnreadDone ? .blue : .white.opacity(0.3)
+        return Circle().fill(color).frame(width: 7, height: 7)
+            .shadow(color: t.isRunning ? .green.opacity(0.8) : .clear, radius: 3)
+    }
+
+    private func statusText(_ t: AgentsService.AgentThread) -> String {
+        if t.pendingRequests > 0 { return "Waiting for your approval" }
+        if t.isRunning { return "Working" }
+        if t.needsAttention { return "Needs you" }
+        let when = t.updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated))
+        if t.isFailed { return "Failed · \(when)" }
+        if t.isDone { return "Done · \(when)" }
+        return when
+    }
+
+    // MARK: Detail + composer
+
+    @ViewBuilder private var detail: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let p = newIn {
+                HStack {
+                    Label("New thread in \(p.title)", systemImage: "sparkles").font(.system(size: 12.5, weight: .semibold))
+                    Spacer()
+                    PillButton(title: "Cancel") { newIn = nil }
+                }
+                Text("Describe what the agent should do. It starts right away in T3 Code.")
+                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+                Spacer(minLength: 0)
+            } else if let t = agents.selected {
+                HStack(spacing: 6) {
+                    Text(t.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                    if !t.model.isEmpty {
+                        Text(t.model).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(.white.opacity(0.08))).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    PillButton(title: "Open in T3", symbol: "arrow.up.forward.app") { agents.openInT3(t) }
+                }
+                messageList(t)
+            } else {
+                EmptyTabMessage(symbol: "sparkles", title: "Pick a thread")
+            }
+            if let err = agents.lastError {
+                Text(err).font(.system(size: 10.5)).foregroundStyle(.orange)
+            }
+            composer
+        }
+    }
+
+    /// The newest messages, pinned to the bottom so the latest reply is always visible.
+    private func messageList(_ t: AgentsService.AgentThread) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Spacer(minLength: 0)
+            if agents.messages.isEmpty {
+                Text(t.isRunning ? "Working…" : "No messages yet.").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+            }
+            ForEach(agents.messages.suffix(2)) { m in
+                let isLast = m.id == agents.messages.last?.id
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: m.isUser ? "person.fill" : "sparkles")
+                        .font(.system(size: 9)).foregroundStyle(m.isUser ? .white.opacity(0.5) : .purple)
+                        .frame(width: 12).padding(.top, 2)
+                    Text(m.text)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(m.isUser ? 0.6 : 0.9))
+                        .lineLimit(isLast ? 3 : 1)
+                        .truncationMode(isLast ? .head : .tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            if t.pendingRequests > 0 || agents.pendingRequests > 0 {
+                HStack(spacing: 8) {
+                    Label("Waiting for your approval", systemImage: "hand.raised.fill")
+                        .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.orange)
+                    PillButton(title: "Review in T3", tint: .orange.opacity(0.9), foreground: .black) { agents.openInT3(t) }
+                }
+            } else if t.isRunning && !agents.messages.isEmpty {
+                Label("Working…", systemImage: "ellipsis").font(.system(size: 10.5)).foregroundStyle(.green)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .clipped()
+    }
+
+    private var composer: some View {
+        HStack(spacing: 8) {
+            TextField(newIn != nil ? "What should the agent do?" :
+                        (agents.selected?.isRunning == true ? "Queue a follow-up (sent when it's done)…" : "Message this agent…"),
+                      text: $draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($focused)
+                .onSubmit(submit)
+            Button(action: submit) {
+                Group {
+                    if agents.sending { ProgressView().controlSize(.mini) } else {
+                        Image(systemName: "arrow.up").font(.system(size: 11, weight: .bold))
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(draft.isEmpty ? Color.white.opacity(0.12) : Color.purple))
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || agents.sending)
+        }
+        .padding(.leading, 10).padding(.trailing, 4).frame(height: 30)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(focused ? 0.12 : 0.07)))
+    }
+
+    private func submit() {
+        let text = draft
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        if let p = newIn {
+            agents.startThread(text, in: p)
+            newIn = nil
+        } else if let id = agents.selectedID {
+            agents.send(text, to: id)
+        }
+        draft = ""
     }
 }

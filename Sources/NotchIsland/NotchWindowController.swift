@@ -58,7 +58,7 @@ final class NotchWindowController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] expanded, tab in
                 guard let self else { return }
-                let wantsKey = expanded && tab == .todo
+                let wantsKey = expanded && (tab == .todo || tab == .agents)
                 self.panel.allowsKey = wantsKey
                 if !wantsKey && self.panel.isKeyWindow {
                     self.panel.resignKey()

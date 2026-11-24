@@ -6,6 +6,7 @@ import { SITE, asset } from "@/lib/site";
 
 const links = [
   { href: "#features", label: "Features" },
+  { href: "#agents", label: "Agents" },
   { href: "#customize", label: "Customize" },
   { href: "#download", label: "Download" },
   { href: "#faq", label: "FAQ" },

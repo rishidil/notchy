@@ -59,6 +59,27 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     ),
   },
   {
+    q: "How do I connect T3 Code?",
+    a: (
+      <p>
+        Install the T3 Code desktop app and open it once, then turn on <strong>Agents (T3 Code)</strong> in
+        Notchy&apos;s Settings → Tabs. Your projects appear automatically. If one is missing, add its folder in
+        Settings → Connections. Approving an agent&apos;s actions still happens inside T3 Code; Notchy tells you when
+        one is waiting.
+      </p>
+    ),
+  },
+  {
+    q: "How do updates work?",
+    a: (
+      <p>
+        From version 1.3, Notchy checks for new versions once a day and shows a pop-up in the notch when one is
+        ready. Click it and Notchy updates itself in a few seconds, keeping your settings and permissions. It only
+        installs updates signed by the same developer certificate. You can also check in Settings → About.
+      </p>
+    ),
+  },
+  {
     q: "How do I quit or change settings?",
     a: (
       <p>

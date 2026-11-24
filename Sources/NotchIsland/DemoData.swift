@@ -29,6 +29,7 @@ enum DemoData {
         vm.bluetooth.applyDemo()
         vm.system.applyDemo()
         vm.screenTime.applyDemo()
+        vm.agents.applyDemo()
         vm.notifications.applyDemo([
             NotificationItem(id: 1, bundleID: "com.apple.MobileSMS", title: "Sam", subtitle: "",
                              body: "Running 5 min late, grab us a table? 🙏", date: now.addingTimeInterval(-120)),
@@ -61,6 +62,10 @@ enum DemoData {
             vm.collapse()
             if let d = vm.bluetooth.devices.first { vm.show(.device(d), for: 60) }
         case "music": vm.timer.cancel(); vm.dismissTransient(); vm.collapse()
+        case "agents-live": vm.timer.cancel(); vm.dismissTransient(); vm.collapse()
+        case "agent-done":
+            vm.collapse()
+            vm.show(.toast(symbol: "checkmark.circle.fill", text: "Agent finished · Add rate limiting to /login", tint: .green), for: 60, tab: .agents)
         case "hud-open":
             vm.tab = .lyrics
             vm.expand()
@@ -111,6 +116,6 @@ enum DemoData {
 extension NotchViewModel {
     func demoEnableAllTabs() {
         // Same as the user-facing order, but don't persist anything.
-        setDemoTabs([.home, .calendar, .timer, .weather, .todo, .lyrics, .shelf, .bluetooth, .system, .screenTime, .notifications])
+        setDemoTabs([.home, .calendar, .timer, .weather, .todo, .lyrics, .agents, .shelf, .bluetooth, .system, .screenTime, .notifications])
     }
 }
