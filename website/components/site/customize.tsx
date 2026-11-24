@@ -58,7 +58,7 @@ export function Customize() {
         </div>
 
         <div className="reveal relative">
-          <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[3rem] bg-[conic-gradient(from_180deg_at_50%_50%,rgb(89_217_255/0.18),rgb(92_107_255/0.18),rgb(191_89_255/0.18),rgb(255_97_158/0.18),rgb(255_168_77/0.18),rgb(89_217_255/0.18))] blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-0 -inset-y-8 -z-10 rounded-[3rem] sm:-inset-8 bg-[conic-gradient(from_180deg_at_50%_50%,rgb(89_217_255/0.18),rgb(92_107_255/0.18),rgb(191_89_255/0.18),rgb(255_97_158/0.18),rgb(255_168_77/0.18),rgb(89_217_255/0.18))] blur-3xl" />
           <Screenshot
             file="settings.webp"
             alt="Notchy Settings window"

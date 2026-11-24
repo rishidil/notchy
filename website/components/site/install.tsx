@@ -1,3 +1,4 @@
+import { FirstLaunch } from "@/components/site/first-launch";
 import { MacOnlyNotice } from "@/components/site/mac-only";
 import { Download, Laptop, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,8 @@ const steps = [
     body: (
       <>
         macOS will say it &ldquo;could not verify&rdquo; the app. That&rsquo;s expected —
-        click <b className="font-medium text-foreground">Done</b>.
+        click <b className="font-medium text-foreground">Done</b>.{" "}
+        <a href="#first-launch" className="text-foreground underline-offset-4 hover:underline">See how ↓</a>
       </>
     ),
   },
@@ -78,6 +80,8 @@ export function Install() {
             </li>
           ))}
         </ol>
+
+        <FirstLaunch />
 
         <div className="reveal mt-10 flex flex-col items-center gap-4 text-center">
           <Button
