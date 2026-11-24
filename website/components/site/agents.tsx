@@ -1,4 +1,4 @@
-import { Bell, Download, MessageSquareText, ToggleRight } from "lucide-react";
+import { Bell, Download, Hand, ToggleRight } from "lucide-react";
 import { Screenshot } from "@/components/site/screenshot";
 import { SectionHeading } from "@/components/site/section-heading";
 
@@ -29,14 +29,14 @@ const steps = [
     ),
   },
   {
-    icon: MessageSquareText,
-    title: "Prompt from the notch",
-    text: "Pick a thread to see its latest replies and send a follow-up (a busy agent gets it as its next turn), or hit + New to start an agent in any project.",
+    icon: Hand,
+    title: "Approve and answer from the notch",
+    text: "When an agent wants to run a command or change files, approve or decline it right there. When it asks a question, tap an answer or type your own, and it carries on.",
   },
   {
     icon: Bell,
     title: "Get a live activity while they work",
-    text: "The notch shows what's running and for how long, pings you when an agent finishes, and turns orange when T3 is waiting for your approval.",
+    text: "The notch shows what's running and for how long, pings you when an agent finishes, and turns orange the moment one needs you. Click to jump straight to it.",
   },
 ];
 
@@ -52,10 +52,10 @@ export function Agents() {
               Your AI agents, <span className="text-brand">one glance away.</span>
             </>
           }
-          description="Connect T3 Code to see, prompt and start your coding agents right from the notch. Everything stays on your Mac: Notchy uses T3 Code's own command-line tool."
+          description="Connect T3 Code to see, prompt and start your coding agents, and approve their actions or answer their questions without leaving what you're doing. Everything stays on your Mac."
         />
         <div className="reveal mt-12 grid gap-4 lg:grid-cols-2">
-          <Screenshot file="agents.webp" alt="The Agents tab listing T3 Code threads" width={1560} height={520} aspect="aspect-[3/1]" />
+          <Screenshot file="approval.webp" alt="Approving an agent's command from the notch" width={1560} height={528} aspect="aspect-[3/1]" />
           <Screenshot file="agents-live.webp" alt="A live activity showing an agent at work" width={1560} height={520} aspect="aspect-[3/1]" />
         </div>
         <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

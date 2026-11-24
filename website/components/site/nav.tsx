@@ -5,6 +5,7 @@ import { GitHubIcon } from "@/components/site/icons";
 import { SITE, asset } from "@/lib/site";
 
 const links = [
+  { href: "#claude", label: "Claude" },
   { href: "#features", label: "Features" },
   { href: "#agents", label: "Agents" },
   { href: "#customize", label: "Customize" },

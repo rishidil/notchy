@@ -3,6 +3,10 @@ import Combine
 import SwiftUI
 
 /// Borderless, non-activating panel that floats above the menu bar.
+extension Notification.Name {
+    static let notchySnapshot = Notification.Name("notchy.snapshot")
+}
+
 final class NotchPanel: NSPanel {
     /// Only true while a tab with a text field (To-Do) is open, so clicking the island
     /// doesn't steal keyboard focus from the app you're using.
@@ -27,7 +31,7 @@ final class NotchWindowController {
     var viewModel: NotchViewModel { vm }
 
     /// Fixed canvas size; SwiftUI draws the island at its top-center.
-    private let canvas = CGSize(width: 780, height: 280)
+    private let canvas = CGSize(width: 780, height: 370)
 
     init() {
         panel = NotchPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
@@ -52,13 +56,22 @@ final class NotchWindowController {
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.layout() }
         installMouseMonitors()
+        NotificationCenter.default.addObserver(forName: .notchySnapshot, object: nil, queue: .main) { [weak self] n in
+            if let path = n.object as? String { self?.snapshot(to: path) }
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: panel, queue: .main) { [weak self] _ in
+            self?.vm.panelIsKey = true
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: panel, queue: .main) { [weak self] _ in
+            self?.vm.panelResignedKey()
+        }
 
         // Let the panel take keyboard focus only for the To-Do tab; hand focus back when the island closes.
         vm.$isExpanded.combineLatest(vm.$tab)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] expanded, tab in
                 guard let self else { return }
-                let wantsKey = expanded && (tab == .todo || tab == .agents)
+                let wantsKey = expanded && (tab == .todo || tab == .agents || tab == .claude)
                 self.panel.allowsKey = wantsKey
                 if !wantsKey && self.panel.isKeyWindow {
                     self.panel.resignKey()
@@ -66,10 +79,44 @@ final class NotchWindowController {
                 }
             }
             .store(in: &bag)
+
+        // Files dropped on "Ask Claude" (or notchy://ask): give the panel keyboard focus so you can type right away.
+        vm.claude.$focusRequest.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    guard let self, self.panel.allowsKey else { return }
+                    self.panel.makeKey()
+                }
+            }
+            .store(in: &bag)
     }
 
     func show() {
         panel.orderFrontRegardless()
+    }
+
+    /// Demo mode only (`notchy://demo?state=snap&path=…`): renders the island over a wallpaper-like backdrop into a PNG,
+    /// for the website's screenshots. Draws Notchy's own window, so it needs no screen-recording permission.
+    func snapshot(to path: String) {
+        guard isDemoMode, let view = panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        let island = vm.shapeSize
+        let size = CGSize(width: view.bounds.width, height: max(260, min(view.bounds.height, island.height + 70)))
+        let out = NSImage(size: size, flipped: false) { rect in
+            NSGradient(colors: [NSColor(red: 0.16, green: 0.30, blue: 0.58, alpha: 1), NSColor(red: 0.30, green: 0.22, blue: 0.55, alpha: 1),
+                                NSColor(red: 0.50, green: 0.20, blue: 0.45, alpha: 1)])?.draw(in: rect, angle: -20)
+            NSColor(white: 1, alpha: 0.10).setFill()
+            NSRect(x: 0, y: rect.maxY - self.vm.notchSize.height, width: rect.width, height: self.vm.notchSize.height).fill()
+            let img = NSImage(size: view.bounds.size)
+            img.addRepresentation(rep)
+            img.draw(in: NSRect(x: 0, y: rect.maxY - view.bounds.height, width: view.bounds.width, height: view.bounds.height))
+            return true
+        }
+        guard let cg = out.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let bitmap = NSBitmapImageRep(cgImage: cg)
+        bitmap.size = size
+        try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
     }
 
     private func layout() {

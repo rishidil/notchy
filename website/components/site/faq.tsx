@@ -26,7 +26,9 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     a: (
       <p>
         Everything runs on your Mac. Weather comes from Open-Meteo and lyrics from LRCLIB, and
-        neither needs an account. Notification content and Screen Time data never leave your Mac.
+        neither needs an account. Notification content and Screen Time data never leave your Mac. With
+        Claude, only what you type in the Claude tab and the files you drop on Ask Claude are sent to
+        Anthropic, using your own account.
       </p>
     ),
   },
@@ -66,8 +68,23 @@ const faqs: { q: string; a: React.ReactNode }[] = [
       <p>
         Install the T3 Code desktop app and open it once, then turn on <strong>Agents (T3 Code)</strong> in
         Notchy&apos;s Settings → Tabs. Your projects appear automatically. If one is missing, add its folder in
-        Settings → Connections. Approving an agent&apos;s actions still happens inside T3 Code; Notchy tells you when
-        one is waiting.
+        Settings → Connections. When an agent needs an approval or has a question, you can answer it right in the
+        notch. Notchy gets its own access token from T3 Code for that, kept in your keychain and revocable in
+        Settings → Connections.
+      </p>
+    ),
+  },
+  {
+    q: "What do I need to use Claude?",
+    a: (
+      <p>
+        An Anthropic API key, which you can create at{" "}
+        <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">
+          platform.claude.com
+        </a>
+        . Paste it once in Settings → Connections → Claude. You pay Anthropic directly for what you use (a quick question
+        with the default Sonnet 5.5 costs around a cent or less; each web search adds $0.01); Notchy itself stays free. Claude.ai
+        Pro and Max subscriptions can&apos;t be used by other apps.
       </p>
     ),
   },

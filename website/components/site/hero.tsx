@@ -28,8 +28,8 @@ export function Hero() {
             variant="outline"
             className="h-7 gap-2 rounded-full border-white/10 bg-white/[0.04] px-3 text-xs text-muted-foreground transition-colors group-hover:border-white/20 group-hover:text-foreground"
           >
-            <span className="bg-brand size-1.5 rounded-full" />
-            Free &amp; open source · MIT licensed
+            <span className="size-1.5 rounded-full bg-[#d97757]" />
+            New in 1.4: Claude in your notch · Free &amp; open source
             <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
           </Badge>
         </a>
@@ -38,7 +38,7 @@ export function Hero() {
           className="rise-move mt-6 max-w-4xl text-balance text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-7xl"
           style={{ animationDelay: "80ms" }}
         >
-          Your notch, <span className="text-brand">brought to life.</span>
+          The AI notch <span className="text-brand">for your Mac.</span>
         </h1>
 
         <p

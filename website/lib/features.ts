@@ -10,6 +10,7 @@ import {
   Inbox,
   ListTodo,
   MicVocal,
+  Sparkle,
   Sparkles,
   SunMedium,
   Timer,
@@ -36,6 +37,22 @@ const pink = "#ff619e";
 const orange = "#ffa84d";
 
 export const FEATURES: Feature[] = [
+  {
+    id: "claude",
+    name: "Claude",
+    screenshot: "claude.webp",
+    icon: Sparkle,
+    color: "#d97757",
+    tagline: "Ask anything, from the top of your screen.",
+    description:
+      "Claude lives in the notch with your own Anthropic account: answers stream in, web search brings sources, and files you drop on the notch come along as context.",
+    points: [
+      "Drop images, PDFs, code or folders on Ask Claude",
+      "Web search with sources",
+      "Live activity and a pop-up when the answer's ready",
+      "Sonnet 5.5 by default, Opus 5.5 and Haiku 5.5 a click away",
+    ],
+  },
   {
     id: "home",
     name: "Home",
@@ -142,8 +159,8 @@ export const FEATURES: Feature[] = [
     color: violet,
     tagline: "Your AI agents, one glance away.",
     description:
-      "See your T3 Code agents, prompt them and start new ones from the notch, with a live activity while they work and a heads-up when they need your approval.",
-    points: ["Live activity while agents run", "Reply or start a thread from the notch", "Alerts when an agent finishes or is waiting on you"],
+      "See your T3 Code agents, prompt them and start new ones from the notch, and approve their actions or answer their questions without switching apps.",
+    points: ["Approve, decline or answer right in the notch", "Live activity while agents run", "Reply or start a thread from the notch"],
   },
   {
     id: "bluetooth",
@@ -196,8 +213,8 @@ export const FEATURES: Feature[] = [
     color: violet,
     tagline: "Drag. Drop. Done.",
     description:
-      "Drag files onto the notch to shelve them for later, AirDrop them, compress them or copy their path.",
-    points: ["File shelf — drag out anywhere later", "AirDrop", "Compress or copy path"],
+      "Drag files onto the notch to ask Claude about them, shelve them for later, AirDrop them, compress them or copy their path.",
+    points: ["Ask Claude about any file", "File shelf — drag out anywhere later", "AirDrop, compress or copy path"],
   },
   {
     id: "hud",

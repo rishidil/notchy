@@ -2,15 +2,16 @@ import SwiftUI
 
 /// Every tab the expanded island can show. Which ones appear (and in what order) is chosen in Settings.
 enum NotchTab: String, CaseIterable, Identifiable, Codable {
-    case home, calendar, timer, weather, todo, lyrics, agents, shelf, bluetooth, system, screenTime, notifications
+    case home, claude, calendar, timer, weather, todo, lyrics, agents, shelf, bluetooth, system, screenTime, notifications
 
     var id: String { rawValue }
 
-    static let defaultTabs: [NotchTab] = [.home, .calendar, .timer, .weather, .shelf]
+    static let defaultTabs: [NotchTab] = [.home, .claude, .calendar, .timer, .weather, .shelf]
 
     var symbol: String {
         switch self {
         case .home: "house.fill"
+        case .claude: "sparkle"
         case .calendar: "calendar"
         case .timer: "timer"
         case .weather: "cloud.sun.fill"
@@ -28,6 +29,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
     var title: String {
         switch self {
         case .home: "Home"
+        case .claude: "Claude"
         case .calendar: "Calendar"
         case .timer: "Timer & Pomodoro"
         case .weather: "Weather"
@@ -45,6 +47,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
     var blurb: String {
         switch self {
         case .home: "Now playing, volume & brightness, quick toggles and your favorite apps"
+        case .claude: "Ask Claude anything, or drop files on the notch to ask about them"
         case .calendar: "Today and tomorrow, with one-click Join for video calls"
         case .timer: "Timers and Pomodoro focus sessions that count down in the notch"
         case .weather: "Current conditions and the forecast for where you are"
@@ -62,6 +65,7 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
     var tint: Color {
         switch self {
         case .home: .blue
+        case .claude: .claude
         case .calendar: .red
         case .timer: .orange
         case .weather: .cyan
@@ -79,12 +83,13 @@ enum NotchTab: String, CaseIterable, Identifiable, Codable {
 
 /// Things you can do with files dragged onto the notch.
 enum DropAction: String, CaseIterable, Identifiable {
-    case shelf, airDrop, compress, copyPath, mail
+    case askClaude, shelf, airDrop, compress, copyPath, mail
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .askClaude: "Ask Claude"
         case .shelf: "Keep on Shelf"
         case .airDrop: "AirDrop"
         case .compress: "Compress"
@@ -95,6 +100,7 @@ enum DropAction: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .askClaude: "sparkle"
         case .shelf: "tray.and.arrow.down.fill"
         case .airDrop: "dot.radiowaves.left.and.right"
         case .compress: "doc.zipper"
@@ -105,6 +111,7 @@ enum DropAction: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
+        case .askClaude: .claude
         case .shelf: .indigo
         case .airDrop: .blue
         case .compress: .orange
@@ -112,6 +119,11 @@ enum DropAction: String, CaseIterable, Identifiable {
         case .mail: .cyan
         }
     }
+}
+
+extension Color {
+    /// Claude's warm clay orange.
+    static let claude = Color(red: 0.85, green: 0.47, blue: 0.34)
 }
 
 /// True when launched with `--demo` (sample data for screenshots; nothing is saved).

@@ -45,13 +45,14 @@ enum DemoData {
                              body: "Neon Coast just dropped Afterglow", date: now.addingTimeInterval(-10800)),
         ])
         vm.files.applyDemo(demoFiles())
+        vm.claude.applyDemo(files: demoFiles().filter { $0.pathExtension == "png" })
     }
 
     static let messageItem = NotificationItem(id: 99, bundleID: "com.apple.MobileSMS", title: "Sam", subtitle: "",
                                               body: "Running 5 min late, grab us a table? 🙏")
 
     /// notchy://demo?state=… : puts the island into a specific state for a screenshot.
-    static func showState(_ state: String, on vm: NotchViewModel) {
+    static func showState(_ state: String, on vm: NotchViewModel, path: String? = nil) {
         guard isDemoMode else { return }
         vm.dropPreview = false
         switch state {
@@ -87,6 +88,27 @@ enum DemoData {
             vm.expand()
             vm.show(.hud(.volume), for: 60)
         case "drop": vm.demoDrop(hover: .airDrop)
+        case "drop-claude": vm.demoDrop(hover: .askClaude)
+        case "snap":
+            NotificationCenter.default.post(name: .notchySnapshot, object: path)
+        case "claude":
+            vm.dropPreview = false
+            vm.tab = .claude
+            vm.expand()
+        case "claude-live":
+            vm.collapse()
+            vm.claude.demoStreaming()
+        case "claude-done":
+            vm.collapse()
+            vm.show(.toast(symbol: "sparkle", text: "Claude · Q3 plan in one line: ship onboarding by Aug 15", tint: .claude), for: 60, tab: .claude)
+        case "approval", "question":
+            vm.agents.applyDemoWaiting(question: state == "question")
+            vm.tab = .agents
+            vm.expand()
+        case "approval-live":
+            vm.agents.applyDemoWaiting(question: false)
+            vm.dismissTransient()
+            vm.collapse()
         case "pomodoro":
             vm.timer.startPomodoro()
             vm.tab = .timer
@@ -132,6 +154,6 @@ enum DemoData {
 extension NotchViewModel {
     func demoEnableAllTabs() {
         // Same as the user-facing order, but don't persist anything.
-        setDemoTabs([.home, .calendar, .timer, .weather, .todo, .lyrics, .agents, .shelf, .bluetooth, .system, .screenTime, .notifications])
+        setDemoTabs([.home, .claude, .calendar, .timer, .weather, .todo, .lyrics, .agents, .shelf, .bluetooth, .system, .screenTime, .notifications])
     }
 }

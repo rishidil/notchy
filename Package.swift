@@ -20,6 +20,11 @@ let package = Package(
                 .linkedFramework("CoreLocation"),
                 .linkedLibrary("sqlite3"),
             ]
-        )
+        ),
+        .testTarget(
+            name: "NotchyTests",
+            dependencies: ["NotchIsland"],
+            path: "Tests/NotchyTests"
+        ),
     ]
 )

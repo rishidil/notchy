@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
-  title: "Notchy — A Dynamic Island for your Mac",
+  title: "Notchy — The AI notch for your Mac",
   description: SITE.description,
   applicationName: SITE.name,
   // Paths in /public are not basePath-aware in metadata, so prefix them.
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     type: "website",
     url: SITE.url,
     siteName: SITE.name,
-    title: "Notchy — A Dynamic Island for your Mac",
+    title: "Notchy — The AI notch for your Mac",
     description: SITE.description,
     images: [{ url: `${SITE.url}icon.png`, width: 1024, height: 1024 }],
   },

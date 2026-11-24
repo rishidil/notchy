@@ -24,6 +24,9 @@ final class AgentsService: ObservableObject {
         var settled: Bool
         /// Open requests waiting on the user (tool approvals / questions).
         var pendingRequests: Int = 0
+        /// How many of those are questions (the rest are approvals).
+        var pendingQuestions: Int = 0
+        var isWaitingOnQuestion: Bool { pendingRequests > 0 && pendingQuestions == pendingRequests }
 
         /// Working, and not blocked on the user.
         var isRunning: Bool { pendingRequests == 0 && ["running", "starting", "queued", "in_progress"].contains(status) }
@@ -39,6 +42,70 @@ final class AgentsService: ObservableObject {
         var isUnreadDone: Bool { isDone && !settled }
     }
 
+    /// Something an agent is waiting on: a tool approval, or questions to answer.
+    struct PendingRequest: Identifiable, Equatable {
+        struct ApprovalOption: Equatable, Hashable {
+            let decision: String
+            let label: String
+            var warning: String?
+        }
+        struct Question: Identifiable, Equatable {
+            struct Option: Equatable, Hashable { let label: String; let description: String; var value: String? }
+            let id: String
+            let header: String
+            let question: String
+            let options: [Option]
+            var multiSelect = false
+            var allowCustom = true
+        }
+        enum Kind: Equatable {
+            case approval(requestKind: String, prompt: String?, reason: String?, options: [ApprovalOption])
+            case questions([Question])
+        }
+        let id: String
+        let threadID: String
+        let kind: Kind
+
+        var isApproval: Bool { if case .approval = kind { true } else { false } }
+
+        static let defaultApprovalOptions = [
+            ApprovalOption(decision: "accept", label: "Approve"),
+            ApprovalOption(decision: "acceptForSession", label: "Approve for Session"),
+            ApprovalOption(decision: "decline", label: "Decline"),
+        ]
+
+        /// Builds a request from a T3 Code turn item (`approval_request` / `user_input_request`).
+        static func parse(_ item: [String: Any], threadID: String) -> PendingRequest? {
+            guard let id = item["requestId"] as? String else { return nil }
+            switch item["type"] as? String {
+            case "approval_request":
+                let opts = (item["options"] as? [[String: Any]] ?? []).compactMap { o -> ApprovalOption? in
+                    guard let d = o["decision"] as? String, let l = o["label"] as? String else { return nil }
+                    return ApprovalOption(decision: d, label: l, warning: o["warning"] as? String)
+                }
+                return PendingRequest(id: id, threadID: threadID,
+                                      kind: .approval(requestKind: item["requestKind"] as? String ?? "permission",
+                                                      prompt: (item["prompt"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                                                      reason: (item["reason"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                                                      options: opts.isEmpty ? defaultApprovalOptions : opts))
+            case "user_input_request":
+                let qs = (item["questions"] as? [[String: Any]] ?? []).compactMap { q -> Question? in
+                    guard let qid = q["id"] as? String else { return nil }
+                    let options = (q["options"] as? [[String: Any]] ?? []).compactMap { o -> Question.Option? in
+                        guard let l = o["label"] as? String else { return nil }
+                        return Question.Option(label: l, description: o["description"] as? String ?? "", value: o["value"] as? String)
+                    }
+                    return Question(id: qid, header: q["header"] as? String ?? "Question", question: q["question"] as? String ?? qid,
+                                    options: options, multiSelect: q["multiSelect"] as? Bool ?? false,
+                                    allowCustom: q["allowCustomAnswer"] as? Bool ?? true)
+                }
+                return qs.isEmpty ? nil : PendingRequest(id: id, threadID: threadID, kind: .questions(qs))
+            default:
+                return nil
+            }
+        }
+    }
+
     struct Message: Identifiable, Equatable {
         let id: Int
         let role: String
@@ -51,12 +118,23 @@ final class AgentsService: ObservableObject {
     @Published private(set) var threads: [AgentThread] = []
     @Published private(set) var loaded = false
     @Published var selectedID: String? {
-        didSet { if selectedID != oldValue && !isDemoMode { messages = []; if visible { loadMessagesIfChanged(force: true) } } }
+        didSet {
+            guard selectedID != oldValue, !isDemoMode else { return }
+            messages = []
+            pending = []
+            if visible { loadMessagesIfChanged(force: true) }
+            loadPending()
+        }
     }
     @Published private(set) var messages: [Message] = []
     @Published private(set) var pendingRequests = 0
     @Published private(set) var sending = false
     @Published private(set) var lastError: String?
+    /// Pending approvals/questions of the selected thread (read from T3 Code's database).
+    @Published private(set) var pending: [PendingRequest] = []
+    /// The request being answered right now.
+    @Published private(set) var responding: String?
+    @Published private(set) var remoteConnected = T3Remote.shared.isConnected
     @Published private(set) var extraFolders: [String] = UserDefaults.standard.stringArray(forKey: "t3ExtraFolders") ?? []
 
     /// Fired when a thread stops running, or starts needing input.
@@ -172,11 +250,12 @@ final class AgentsService: ObservableObject {
                     self.publish(Self.overlay(fast, on: self.threads))
                 }
                 if self.visible { self.loadMessagesIfChanged() }
+                if self.selected?.pendingRequests ?? 0 > 0 || !self.pending.isEmpty { self.loadPending() }
             }
         }
     }
 
-    private struct FastStatus { var running: Bool; var pending: Int }
+    private struct FastStatus { var running: Bool; var pending: Int; var questions: Int }
 
     /// Thread status from T3 Code's database: is the latest run going, and are requests waiting on the user?
     private static func fastStatus() -> [String: FastStatus]? {
@@ -187,7 +266,8 @@ final class AgentsService: ObservableObject {
         let sql = """
         SELECT t.thread_id,
                (SELECT r.status FROM orchestration_v2_projection_runs r WHERE r.thread_id = t.thread_id ORDER BY r.ordinal DESC LIMIT 1),
-               (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id = t.thread_id AND q.status = 'pending')
+               (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id = t.thread_id AND q.status = 'pending'),
+               (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id = t.thread_id AND q.status = 'pending' AND q.kind = 'user_input')
         FROM orchestration_v2_projection_threads t
         WHERE t.deleted_at IS NULL AND t.archived_at IS NULL
         """
@@ -198,7 +278,8 @@ final class AgentsService: ObservableObject {
         while sqlite3_step(stmt) == SQLITE_ROW {
             guard let id = sqlite3_column_text(stmt, 0).map({ String(cString: $0) }) else { continue }
             let run = sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? ""
-            result[id] = FastStatus(running: run == "running", pending: Int(sqlite3_column_int(stmt, 2)))
+            result[id] = FastStatus(running: run == "running", pending: Int(sqlite3_column_int(stmt, 2)),
+                                    questions: Int(sqlite3_column_int(stmt, 3)))
         }
         return result
     }
@@ -210,6 +291,7 @@ final class AgentsService: ObservableObject {
             guard let f = fast[t.id] else { return t }
             var t = t
             t.pendingRequests = f.pending
+            t.pendingQuestions = f.questions
             if f.running { t.status = "running" }
             else if t.status == "running" { t.status = "completed"; t.settled = false } // just finished
             return t
@@ -359,6 +441,81 @@ final class AgentsService: ObservableObject {
         }
     }
 
+    // MARK: Approvals & questions
+
+    /// Reads the selected thread's pending requests from T3 Code's database (read-only).
+    func loadPending() {
+        guard !isDemoMode, let id = selectedID else { return }
+        queue.async { [weak self] in
+            let list = Self.pendingRequests(threadID: id)
+            DispatchQueue.main.async {
+                guard let self, self.selectedID == id, self.pending != list else { return }
+                self.pending = list
+            }
+        }
+    }
+
+    static func pendingRequests(threadID: String) -> [PendingRequest] {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); return [] }
+        defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 200)
+        let sql = """
+        SELECT ti.payload_json FROM orchestration_v2_projection_turn_items ti
+        JOIN orchestration_v2_projection_runtime_requests r ON r.runtime_request_id = json_extract(ti.payload_json, '$.requestId')
+        WHERE ti.thread_id = ? AND ti.type IN ('approval_request', 'user_input_request') AND r.status = 'pending'
+        ORDER BY ti.ordinal
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, threadID, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        var result: [PendingRequest] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let text = sqlite3_column_text(stmt, 0).map({ String(cString: $0) }),
+                  let obj = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any],
+                  let req = PendingRequest.parse(obj, threadID: threadID),
+                  !result.contains(where: { $0.id == req.id }) else { continue }
+            result.append(req)
+        }
+        return result
+    }
+
+    /// Approves/declines an approval (`decision`) or answers questions (`answers`: question id → label, labels or text).
+    func respond(to request: PendingRequest, decision: String? = nil, answers: [String: Any]? = nil) {
+        guard let cli = cliPath, responding == nil else { return }
+        if isDemoMode { pending.removeAll { $0.id == request.id }; return }
+        responding = request.id
+        lastError = nil
+        queue.async { [weak self] in
+            var failure: String?
+            do {
+                try T3Remote.shared.respond(cli: cli, threadID: request.threadID, requestID: request.id,
+                                            decision: decision, answers: answers)
+            } catch {
+                failure = error.localizedDescription
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.responding = nil
+                self.remoteConnected = T3Remote.shared.isConnected
+                if let failure { self.lastError = failure; return }
+                self.pending.removeAll { $0.id == request.id }
+                self.refresh(force: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.loadPending(); self.loadMessages() }
+            }
+        }
+    }
+
+    /// Revokes the token Notchy uses to answer requests.
+    func disconnectRemote() {
+        let cli = cliPath
+        queue.async { [weak self] in
+            T3Remote.shared.disconnect(cli: cli)
+            DispatchQueue.main.async { self?.remoteConnected = false }
+        }
+    }
+
     // MARK: Settings
 
     func addFolder() {
@@ -400,6 +557,32 @@ final class AgentsService: ObservableObject {
         loaded = true
     }
 
+    /// Demo: a thread waiting for approval (or with a question), selected.
+    func applyDemoWaiting(question: Bool) {
+        let now = Date()
+        var t = AgentThread(id: "t0", projectID: "p2", projectTitle: "api", projectPath: "/demo/api",
+                            title: question ? "Migrate the users table" : "Upgrade to Postgres 17",
+                            status: "running", model: "claude-opus-5-5", updatedAt: now, settled: false)
+        t.pendingRequests = 1
+        t.pendingQuestions = question ? 1 : 0
+        threads.removeAll { $0.id == "t0" }
+        threads.insert(t, at: 0)
+        runningSince["t0"] = now.addingTimeInterval(-6 * 60)
+        selectedID = "t0"
+        messages = [Message(id: 0, role: "user", text: question ? "Add a migration for the new users.plan column." : "Upgrade the dev database to Postgres 17."),
+                    Message(id: 1, role: "assistant", text: question ? "The migration is ready. One decision before I run it:"
+                                : "Docker Compose is updated. I need to recreate the database container to finish.")]
+        pending = [question
+            ? PendingRequest(id: "r1", threadID: "t0", kind: .questions([
+                .init(id: "q1", header: "Backfill", question: "What should existing users get for plan?",
+                      options: [.init(label: "free", description: "Everyone starts on the free plan"),
+                                .init(label: "pro", description: "Grandfather current users into pro"),
+                                .init(label: "null", description: "Leave it empty and decide later")])]))
+            : PendingRequest(id: "r1", threadID: "t0", kind: .approval(requestKind: "command",
+                prompt: "docker compose up -d --force-recreate db", reason: "Recreate the database container",
+                options: PendingRequest.defaultApprovalOptions))]
+    }
+
     // MARK: Helpers
 
     static func appURL() -> URL? {
@@ -438,7 +621,7 @@ final class AgentsService: ObservableObject {
 
     /// Runs a command and returns stdout on success (exit 0), nil otherwise. Off the main thread only.
     @discardableResult
-    private static func run(_ path: String, _ args: [String], stdin input: String? = nil) -> Data? {
+    static func run(_ path: String, _ args: [String], stdin input: String? = nil) -> Data? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args

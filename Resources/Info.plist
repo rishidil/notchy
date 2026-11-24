@@ -13,9 +13,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.3.1</string>
+    <string>1.4.0</string>
     <key>CFBundleVersion</key>
-    <string>6</string>
+    <string>7</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
@@ -46,6 +46,12 @@
             </array>
         </dict>
     </array>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- Answering T3 Code approvals talks to T3 Code's server on this Mac (http://127.0.0.1). -->
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
     <key>NSCalendarsUsageDescription</key>
     <string>Notchy shows your next calendar event in the notch.</string>
 </dict>

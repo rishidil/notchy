@@ -2,17 +2,22 @@
 
 **[Website](https://rishidil.github.io/notchy/) · [Download](https://github.com/rishidil/notchy/releases/latest/download/Notchy.dmg)**
 
-![Notchy](website/public/screenshots/home.webp)
+![Claude in the notch](website/public/screenshots/claude.webp)
 
-A Dynamic Island for your MacBook's notch. Native SwiftUI + AppKit, no dependencies, ~0% CPU at idle.
+The AI notch for your Mac. A Dynamic Island with **Claude built in**: ask anything from the top of your screen, drop
+files on the notch to ask about them, and answer your coding agents' approvals and questions without switching apps.
+Native SwiftUI + AppKit, no dependencies, ~0% CPU at idle.
 
-Hover the notch to expand it. When something's happening, the notch grows a **live activity**: now playing,
-timers, charging, volume/brightness, upcoming meetings and notification previews.
+Hover the notch to expand it. When something's happening, the notch grows a **live activity**: Claude thinking or
+searching the web, agents at work, now playing, timers, charging, volume/brightness, upcoming meetings and
+notification previews.
 
 ## Features
 
 | | |
 | --- | --- |
+| ✳️ **Claude** | Ask Claude from the notch with your own Anthropic account. Streams answers, searches the web (with sources), and reads files you drop on **Ask Claude**: images, PDFs, code and text, even folders. Live activity while it works, a pop-up when the answer's ready |
+| ✨ **Agents (T3 Code)** | See, prompt and start your [T3 Code](https://t3.codes) agents, and **approve actions or answer their questions right in the notch**. Live activity while they work, alerts when one finishes or needs you |
 | 🎵 **Now Playing** | Spotify & Apple Music: artwork, equalizer tinted to the album art, play/pause/skip, seekable progress |
 | 🔊 **Volume & brightness HUD** | Bars pop out of the notch. Optionally replaces the system HUD entirely |
 | 🔔 **Notification previews** | New notifications appear in the notch (right-click to mute an app) |
@@ -25,9 +30,8 @@ timers, charging, volume/brightness, upcoming meetings and notification previews
 | 📊 **System monitor** | CPU, memory, network and disk with live graphs |
 | ⏳ **Screen Time** | Today's usage and top apps, tracked privately on your Mac |
 | 🔔 **Notification history** | Recent notifications in their own tab |
-| ✨ **Agents (T3 Code)** | See, prompt and start your [T3 Code](https://t3.codes) agents; live activity while they work, alerts when one finishes or is waiting for your approval |
 | ⬆️ **Automatic updates** | Notchy checks for new versions and updates itself in a few seconds |
-| 🪄 **Drop actions** | Drag files onto the notch from any tab: keep on shelf, AirDrop, compress, copy path or email |
+| 🪄 **Drop actions** | Drag files onto the notch from any tab: ask Claude, keep on shelf, AirDrop, compress, copy path or email |
 | 📥 **File shelf** | Hold dropped files, drag them out anywhere later, or AirDrop them |
 | ⚡ **Quick toggles** | Dark Mode, Keep Awake (uses [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) if installed; right-click for durations), Mute, Screenshot, Sleep Display |
 | 🚀 **App shelf** | Your favorite apps one click away (`+` to add, right-click to remove) |
@@ -66,6 +70,38 @@ cd notchy
 Other commands: `./build.sh` (just build into `build/`), `./build.sh run` (build + relaunch from `build/`) and `./build.sh dmg` (make the installer disk image).
 
 
+## Connect Claude
+
+Notchy talks to Claude with **your own Anthropic account**, so you pay Anthropic per use (Notchy adds nothing and
+never sees your key). Claude.ai Pro/Max subscriptions can't be used by other apps; you need an API key.
+
+1. Create an API key at **[platform.claude.com → API keys](https://platform.claude.com/settings/keys)** (new accounts
+   need a few dollars of credit under *Billing*).
+2. Notchy ⚙︎ → **Settings → Connections → Claude**, paste the key and click **Save**. It's checked straight away and
+   stored in your Mac's keychain.
+3. Hover the notch and open the **✳️ Claude** tab (on by default for new installs; otherwise switch it on in
+   **Settings → Tabs**).
+
+Already use Anthropic's tools? Notchy also picks up an `ant auth login` sign-in or an `ANTHROPIC_API_KEY` set for the
+app, so there's nothing to paste.
+
+Using it:
+
+- **Ask anything.** Type and press Return. Answers stream in; right-click one to copy it. **New Chat** starts over.
+- **Ask about files.** Drag files onto the notch and drop them on **Ask Claude**. They appear as chips above the
+  text box; ask your question (or just press Return for a summary). Works with images, PDFs, text and code
+  files, and folders (Claude gets a listing of what's inside, not the files themselves).
+- **Web search** is on by default: Claude looks things up when a question needs current information and shows
+  its sources under the answer. Turn it off in Settings or the model menu next to the tab title.
+- **Keep working.** Move away and the closed notch shows *"Claude is searching the web · …"* and then the answer as it
+  streams; a pop-up tells you when it's done.
+- **Model & style:** Claude Sonnet 5.5 by default (fast and capable). Switch to Opus 5.5 for hard questions or
+  Haiku 5.5 for quick ones, and pick **Quick**, **Balanced** or **Thorough** answers.
+- **From Shortcuts or Raycast:** `notchy://ask?q=What%27s%20on%20my%20mind` opens the tab and asks.
+
+Privacy: only what you type into the Claude tab and the files you drop on **Ask Claude** are sent to Anthropic. Nothing
+else in Notchy (notifications, calendar, screen time, the shelf) is ever sent to Claude.
+
 ## Connect T3 Code agents
 
 Notchy can show your [T3 Code](https://t3.codes) agents in the notch.
@@ -80,20 +116,25 @@ Notchy can show your [T3 Code](https://t3.codes) agents in the notch.
 
 What you get:
 
-- **Agents tab:** every thread across your projects, sorted by *Waiting for your approval*, *Working*, *Done*
+- **Agents tab:** every thread across your projects, sorted by *Waiting for you*, *Working*, *Done*
   (not yet reviewed), then the rest. Click one to see its latest replies and send a message; a busy agent gets it as its
   next turn. **+ New** starts an agent in any project. **Open in T3** jumps to the project in the desktop app.
+- **Approve and answer in the notch:** when an agent asks to run a command or change files, its request appears with
+  **Approve**, **Approve for Session** and **Decline**. When it asks you a question, pick an option (or type your own
+  answer) and it carries on.
 - **Live activity:** while agents run, the closed notch shows *"Fix the login bug · Working · 3m"* (or
   *"2 agents working"*). When an agent needs you it turns orange: *"T3 is waiting for your approval"*.
-- **Pop-ups** when an agent finishes or starts waiting. Click one to open the Agents tab.
+- **Pop-ups** when an agent finishes, needs an approval or has a question. Click one to open that thread.
 
 Good to know:
 
-- **Approvals happen in T3 Code.** Its command-line tool can't approve actions, so Notchy tells you and **Review in T3**
-  takes you there.
+- **How approvals work.** The first time you approve or answer from the notch, Notchy asks T3 Code for its own access
+  token (`t3 auth session issue`, limited to reading and operating threads). It's kept in your keychain and sent only to
+  the T3 Code server on your Mac. Revoke it any time in **Settings → Connections → T3 Code → Disconnect**.
+  **Review in T3** is always there if you'd rather decide in the app.
 - **Private and light.** Notchy calls T3 Code's own `t3 thread list/show/send/start` commands, and reads thread
-  status and project folders from T3 Code's local database (read-only) so it can react instantly without polling the CLI.
-  Nothing leaves your Mac.
+  status, pending requests and project folders from T3 Code's local database (read-only) so it can react instantly
+  without polling the CLI. Nothing leaves your Mac.
 - If a T3 Code update changes its database, Notchy falls back to the CLI automatically.
 
 ## Performance
@@ -121,6 +162,7 @@ Each feature asks only when needed:
 
 | Feature | Permission | How |
 | --- | --- | --- |
+| Claude | Your Anthropic API key (no macOS permission) | Settings → Connections → Claude |
 | Calendar | Calendars | Prompted on first launch |
 | Weather | Location (or pick a city in Settings) | Prompted when the Weather tab is on |
 | Bluetooth tab | Bluetooth | Prompted when the Bluetooth tab is on |
@@ -206,14 +248,29 @@ asked for permissions one more time.
 | `FeatureTabs.swift` | Weather, To-Do, Lyrics, Bluetooth, System, Screen Time, Notifications tabs and drop actions |
 | `WeatherService.swift`, `LyricsService.swift`, `BluetoothService.swift`, `SystemMonitor.swift`, `ScreenTimeTracker.swift`, `TodoStore.swift` | The services behind those tabs |
 | `SettingsView.swift` | Settings / first-launch window |
-| `AgentsService.swift` | T3 Code agents: `t3` CLI for threads/messages, read-only status from T3 Code's database |
+| `ClaudeService.swift`, `ClaudeAPI.swift`, `ClaudeTab.swift` | Claude: conversation state, Messages API streaming (SSE), web search, attachments, credentials; the tab and live activity |
+| `AgentsService.swift` | T3 Code agents: `t3` CLI for threads/messages, read-only status and pending requests from T3 Code's database |
+| `T3Remote.swift` | Answers T3 Code approvals/questions over T3 Code's local server API with a scoped token |
+| `Keychain.swift` | Stores the Claude API key and the T3 Code token |
 | `UpdateService.swift` | In-app updates from GitHub Releases, with signature verification |
 | `Efficiency.swift` | Low-power timers, CPU self-monitoring / efficiency mode, anonymous diagnostics |
 | `DemoData.swift` | Sample data for screenshots (`--demo`; nothing saved) |
 | `website/` | The Next.js + shadcn/ui website (deployed to GitHub Pages) |
 
-Automation: `notchy://open?tab=weather`, `notchy://timer?minutes=10`, `notchy://pomodoro`,
+Automation: `notchy://ask?q=…`, `notchy://open?tab=claude`, `notchy://timer?minutes=10`, `notchy://pomodoro`,
 `notchy://settings` (handy for Shortcuts or Raycast).
+
+### Tests
+
+```bash
+./scripts/test.sh                                              # unit tests (offline, ~1s)
+NOTCHY_LIVE_CLAUDE=1 ANTHROPIC_API_KEY=sk-ant-… ./scripts/test.sh   # + real Claude API calls (a few cents)
+NOTCHY_LIVE_T3=1 ./scripts/test.sh                             # + a round trip to the running T3 Code server
+```
+
+The suite covers request building, the streaming parser (text, thinking, web search, citations, paused turns,
+refusals and fallbacks), attachments, credentials, the conversation flow against a mocked API, and T3 Code's
+request/response format.
 
 ### Limitations
 
@@ -226,5 +283,8 @@ Automation: `notchy://open?tab=weather`, `notchy://timer?minutes=10`, `notchy://
   (or right-click the island → *Always Show Small Logo*) for a tiny logo at the top center. Turn off *Show Music & Timer
   in Menu Bar* to show only pop-ups.
 - **Screen Time** is tallied by Notchy itself from the moment you turn the tab on (macOS has no public Screen Time API).
-- **Privacy:** notification content, screen time and your files never leave your Mac. Weather requests send only
+- **Claude** needs an Anthropic API key with credit; usage is billed by Anthropic. Answers in the notch are kept for
+  the current chat only (nothing is saved after you quit).
+- **Privacy:** notification content, screen time and your files never leave your Mac, except what you choose to send
+  to Claude. Weather requests send only
   approximate coordinates to Open-Meteo; lyrics lookups send the song title and artist to LRCLIB.

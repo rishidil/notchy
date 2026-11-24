@@ -9,7 +9,7 @@ export const SITE = {
   name: "Notchy",
   url: "https://rishidil.github.io/notchy/",
   description:
-    "Music, calendar, weather, timers and more — living in your MacBook's notch. Free and open source.",
+    "The AI notch for your Mac. Ask Claude anything, drop files on the notch to ask about them, and answer your coding agents, alongside music, calendar, weather and more. Free and open source.",
   downloadUrl:
     "https://github.com/rishidil/notchy/releases/latest/download/Notchy.dmg",
   githubUrl: "https://github.com/rishidil/notchy",

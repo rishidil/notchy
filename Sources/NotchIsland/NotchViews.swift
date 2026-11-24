@@ -201,6 +201,11 @@ struct CollapsedView: View {
             Image(systemName: waiting > 0 ? "hand.raised.fill" : "sparkles")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(waiting > 0 ? .orange : .purple)
+        case .claude:
+            Image(systemName: "sparkle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.claude)
+                .symbolEffect(.pulse, options: .repeating)
         case .notification, .none:
             EmptyView()
         }
@@ -241,6 +246,11 @@ struct CollapsedView: View {
                 Circle().fill(waiting > 0 ? .orange : .green).frame(width: 5, height: 5)
                 Text("\(waiting > 0 ? waiting : running)").font(.system(size: 12, weight: .semibold).monospacedDigit())
             }
+        case .claude:
+            Image(systemName: vm.claude.activity == .thinking ? "ellipsis" : (vm.claude.activity == .writing ? "text.alignleft" : "globe"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+                .symbolEffect(.variableColor.iterative, options: .repeating)
         case .notification, .none:
             EmptyView()
         }
@@ -279,6 +289,8 @@ struct CollapsedView: View {
             .frame(height: 24)
         case .agents(let running, _):
             AgentsLiveRow(agents: vm.agents, running: running)
+        case .claude:
+            ClaudeLiveRow(claude: vm.claude)
         case .music where vm.showsLyricLine:
             TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
                 Text(vm.lyrics.line(at: vm.music.position(at: ctx.date)) ?? "♪")
@@ -422,7 +434,8 @@ struct AgentsLiveRow: View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
             HStack(spacing: 6) {
                 if let w = agents.waitingThreads.first {
-                    Text("T3 is waiting for your approval").font(.system(size: 12, weight: .semibold)).foregroundStyle(.orange).fixedSize()
+                    Text(waitingText)
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.orange).fixedSize()
                     Text("· \(agents.waitingThreads.count > 1 ? "\(agents.waitingThreads.count) threads" : w.title)")
                         .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 } else if running == 1, let t = agents.runningThreads.first {
@@ -439,6 +452,10 @@ struct AgentsLiveRow: View {
             .padding(.horizontal, 16)
             .frame(height: 22)
         }
+    }
+
+    private var waitingText: String {
+        agents.waitingThreads.allSatisfy { $0.isWaitingOnQuestion } ? "T3 has a question for you" : "T3 is waiting for your approval"
     }
 
     private func elapsed(_ t: AgentsService.AgentThread, now: Date) -> String {

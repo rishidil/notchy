@@ -13,7 +13,7 @@ export function Footer() {
             <Image src={asset("/icon-96.png")} alt="" width={36} height={36} className="size-9" />
             <div>
               <div className="font-semibold tracking-tight">{SITE.name}</div>
-              <div className="text-sm text-muted-foreground">A Dynamic Island for your MacBook.</div>
+              <div className="text-sm text-muted-foreground">The AI notch for your Mac.</div>
             </div>
           </div>
           <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">

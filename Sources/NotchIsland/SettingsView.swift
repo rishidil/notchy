@@ -370,7 +370,10 @@ private struct ConnectionsPage: View {
 
     var body: some View {
         ConnectionsContent(calendar: vm.calendar, shelf: vm.shelf, files: vm.files, toggles: vm.toggles, music: vm.music,
-                           agents: vm.agents, agentsTabOn: vm.isTabEnabled(.agents)) { vm.setTab(.agents, enabled: true) }
+                           agents: vm.agents, claude: vm.claude, agentsTabOn: vm.isTabEnabled(.agents),
+                           claudeTabOn: vm.isTabEnabled(.claude), enableClaudeTab: { vm.setTab(.claude, enabled: true) }) {
+            vm.setTab(.agents, enabled: true)
+        }
     }
 }
 
@@ -381,12 +384,20 @@ private struct ConnectionsContent: View {
     @ObservedObject var toggles: SystemToggles
     @ObservedObject var music: MusicController
     @ObservedObject var agents: AgentsService
+    @ObservedObject var claude: ClaudeService
     let agentsTabOn: Bool
+    let claudeTabOn: Bool
+    let enableClaudeTab: () -> Void
     let enableAgentsTab: () -> Void
+    @State private var keyDraft = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Connections", subtitle: "Accounts, apps and services Notchy works with.")
+
+            group("Claude", symbol: "sparkle", tint: .claude) {
+                claudeSection
+            }
 
             group("T3 Code agents", symbol: "sparkles", tint: .purple) {
                 HStack {
@@ -436,6 +447,20 @@ private struct ConnectionsContent: View {
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                         Spacer()
                         Button("Add Folder…") { agents.addFolder() }.controlSize(.small)
+                    }
+                    Divider()
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Answer approvals and questions in the notch").font(.system(size: 12, weight: .semibold))
+                            Text(agents.remoteConnected
+                                 ? "Notchy has its own access token from T3 Code (kept in your keychain, local only)."
+                                 : "The first time you approve or answer from the notch, T3 Code gives Notchy an access token. It stays on your Mac and you can revoke it here.")
+                                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        if agents.remoteConnected {
+                            Button("Disconnect") { agents.disconnectRemote() }.controlSize(.small)
+                        }
                     }
                 }
             }
@@ -564,6 +589,70 @@ private struct ConnectionsContent: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder private var claudeSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your Anthropic account").font(.system(size: 13, weight: .semibold))
+                Text(claude.credentialSource.map { "Using \($0.title)" }
+                     ?? "Ask Claude from the notch with your own API key. You pay Anthropic per use; Notchy adds nothing.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if claude.checkingCredential {
+                ProgressView().controlSize(.small)
+            } else if claude.isConfigured {
+                Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.system(size: 12, weight: .medium))
+            }
+        }
+        HStack(spacing: 8) {
+            SecureField(claude.hasSavedKey ? "Replace your saved API key (sk-ant-…)" : "Paste your API key (sk-ant-…)", text: $keyDraft)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { claude.saveKey(keyDraft); keyDraft = "" }
+            Button("Save") { claude.saveKey(keyDraft); keyDraft = "" }
+                .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+            if claude.hasSavedKey { Button("Remove") { claude.removeKey() } }
+        }
+        HStack(spacing: 10) {
+            Link("Get an API key", destination: URL(string: "https://platform.claude.com/settings/keys")!).font(.system(size: 12))
+            Text("Saved in your Mac's keychain. Developers: an `ant auth login` sign-in or ANTHROPIC_API_KEY is picked up automatically.")
+                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            if claude.isConfigured { Button("Test") { claude.testConnection() }.controlSize(.small) }
+        }
+        if let r = claude.testResult {
+            Label(r.message, systemImage: r.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 11.5)).foregroundStyle(r.ok ? Color.green : .orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Divider()
+        Picker("Model", selection: $claude.model) {
+            ForEach(ClaudeModel.allCases) { Text($0.title).tag($0) }
+        }
+        .frame(maxWidth: 320)
+        Text(claude.model.blurb).font(.system(size: 11)).foregroundStyle(.secondary)
+        Picker("Answers", selection: $claude.effort) {
+            ForEach(ClaudeEffort.allCases) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 320)
+        Text("Quick answers fastest and cheapest; Thorough thinks longer for harder questions.")
+            .font(.system(size: 11)).foregroundStyle(.secondary)
+        Toggle("Let Claude search the web for current answers", isOn: $claude.webSearch)
+        Text("Web searches cost $10 per 1,000 on your Anthropic bill.").font(.system(size: 11)).foregroundStyle(.secondary)
+        if !claudeTabOn {
+            Divider()
+            HStack {
+                Text("The Claude tab is off.").font(.system(size: 12)).foregroundStyle(.secondary)
+                Spacer()
+                Button("Turn On Claude Tab", action: enableClaudeTab)
+            }
+        }
+        Divider()
+        Label("What you ask, and files you drop on Ask Claude, are sent to Anthropic to get an answer. Nothing else in Notchy is.",
+              systemImage: "lock.fill")
+            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
     }
 
     private func group<Content: View>(_ title: String, symbol: String, tint: Color, @ViewBuilder content: () -> Content) -> some View {

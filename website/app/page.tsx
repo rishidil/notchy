@@ -1,4 +1,5 @@
 import { Agents } from "@/components/site/agents";
+import { Claude } from "@/components/site/claude";
 import { Customize } from "@/components/site/customize";
 import { Faq } from "@/components/site/faq";
 import { Features } from "@/components/site/features";
@@ -13,6 +14,7 @@ export default function Home() {
       <Nav />
       <main className="flex-1">
         <Hero />
+        <Claude />
         <Features />
         <Agents />
         <Customize />

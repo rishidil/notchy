@@ -29,6 +29,7 @@ enum LiveActivity: Equatable {
     case device(BluetoothService.Device)
     case toast(symbol: String, text: String, tint: Color)
     case agents(running: Int, waiting: Int)
+    case claude
 }
 
 final class NotchViewModel: ObservableObject {
@@ -81,6 +82,7 @@ final class NotchViewModel: ObservableObject {
     let system = SystemMonitor()
     let screenTime = ScreenTimeTracker()
     let agents = AgentsService()
+    let claude = ClaudeService()
     let updater = UpdateService()
     /// Something to do when the user clicks the current pop-up (e.g. open the update screen).
     private var actionForTransient: (() -> Void)?
@@ -98,6 +100,10 @@ final class NotchViewModel: ObservableObject {
     private var trustTimer: Timer?
     private var isHovering = false
     private var menuOpen = false
+    /// A text field in the island has focus (Claude or Agents composer): stay open until the user clicks elsewhere.
+    var composerActive = false
+    /// The island's panel currently has keyboard focus.
+    var panelIsKey = false
     /// Frames of the drop-action tiles, in the island's coordinate space.
     var dropTileFrames: [DropAction: CGRect] = [:]
 
@@ -132,6 +138,7 @@ final class NotchViewModel: ObservableObject {
             system.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             screenTime.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             agents.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            claude.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             updater.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(services)
@@ -171,8 +178,16 @@ final class NotchViewModel: ObservableObject {
             self?.show(.toast(symbol: "checkmark.circle.fill", text: "Agent finished · \(t.title)", tint: .green), for: 5, tab: .agents)
         }
         agents.onNeedsInput = { [weak self] t in
-            self?.show(.toast(symbol: "hand.raised.fill", text: "T3 is waiting for your approval · \(t.title)", tint: .orange), for: 8, tab: .agents)
+            guard let self else { return }
+            self.agents.selectedID = t.id // so clicking the pop-up opens the thread that needs you
+            let text = t.isWaitingOnQuestion ? "T3 has a question for you · \(t.title)" : "T3 is waiting for your approval · \(t.title)"
+            self.show(.toast(symbol: t.isWaitingOnQuestion ? "questionmark.bubble.fill" : "hand.raised.fill", text: text, tint: .orange),
+                      for: 8, tab: .agents)
             NSSound(named: "Tink")?.play()
+        }
+        claude.onAnswer = { [weak self] firstLine in
+            guard let self, !(self.isExpanded && self.tab == .claude) else { return }
+            self.show(.toast(symbol: "sparkle", text: "Claude · \(firstLine.isEmpty ? "Answer ready" : firstLine)", tint: .claude), for: 6, tab: .claude)
         }
         keyTap.handler = { [weak self] key, fine, isDown, isRepeat in
             self?.handleMediaKey(key, fine: fine, isDown: isDown, isRepeat: isRepeat) ?? false
@@ -190,7 +205,21 @@ final class NotchViewModel: ObservableObject {
             self?.screenTime.saveNow()
         })
 
-        if isDemoMode { DemoData.apply(to: self) } else { applyFeatureState() }
+        if isDemoMode { DemoData.apply(to: self) } else { applyFeatureState(); announceClaudeIfNew() }
+    }
+
+    /// Once, for people updating from 1.3: point at the new Claude tab.
+    private func announceClaudeIfNew() {
+        let d = UserDefaults.standard
+        guard !d.bool(forKey: "announcedClaude"), d.stringArray(forKey: "enabledTabs") != nil else {
+            d.set(true, forKey: "announcedClaude")
+            return
+        }
+        d.set(true, forKey: "announcedClaude")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            self?.show(.toast(symbol: "sparkle", text: "New: Claude in your notch · Click to set it up", tint: .claude), for: 10,
+                       action: { [weak self] in self?.openSettings(page: .connections) })
+        }
     }
 
     // MARK: Tabs & features
@@ -288,8 +317,13 @@ final class NotchViewModel: ObservableObject {
         if !hasNotch && !showMenuBarActivities { return .none }
         if timer.isActive { return .timer }
         // Agents working in the background are a live activity (like T3 Code's on iOS), ahead of music.
-        if isTabEnabled(.agents) && (agents.runningCount > 0 || agents.attentionCount > 0) {
+        if isTabEnabled(.agents) && agents.attentionCount > 0 {
             return .agents(running: agents.runningCount, waiting: agents.attentionCount)
+        }
+        // Claude working on an answer you're not looking at.
+        if claude.isStreaming && !(isExpanded && tab == .claude) { return .claude }
+        if isTabEnabled(.agents) && agents.runningCount > 0 {
+            return .agents(running: agents.runningCount, waiting: 0)
         }
         if music.isPlaying && music.hasTrack { return .music }
         if let e = calendar.nextEvent {
@@ -302,7 +336,8 @@ final class NotchViewModel: ObservableObject {
     /// Show the current lyric line under the notch while music plays.
     var showsLyricLine: Bool { lyricsInNotch && activity == .music && lyrics.state == .synced }
 
-    var expandedSize: CGSize { CGSize(width: expandedWidth, height: notchSize.height + 162) }
+    /// The Claude tab is taller, so answers have room to breathe.
+    var expandedSize: CGSize { CGSize(width: expandedWidth, height: notchSize.height + (tab == .claude && !showsDropActions ? 252 : 162)) }
 
     // MARK: Header layout (tabs either side of the notch, battery + ⚙︎ always visible on the right)
 
@@ -337,10 +372,11 @@ final class NotchViewModel: ObservableObject {
         case .hud: return CGSize(width: hasNotch ? wide : max(wide, 240), height: n.height + 26)
         case .notification: return CGSize(width: max(wide, 420), height: n.height + 62)
         case .timerDone: return CGSize(width: max(wide, 360), height: n.height + 44)
-        case .toast: return CGSize(width: max(wide, 360), height: n.height + 34)
+        case .toast(_, let text, _): return CGSize(width: max(wide, text.count > 44 ? 480 : 360), height: n.height + 34)
         case .device: return CGSize(width: max(wide, 300), height: n.height + 30)
         case .music where showsLyricLine: return CGSize(width: max(wide, 380), height: n.height + 26)
         case .agents: return CGSize(width: max(wide, 340), height: n.height + 26)
+        case .claude: return CGSize(width: max(wide, 400), height: n.height + 26)
         default: return CGSize(width: wide, height: n.height)
         }
     }
@@ -386,7 +422,8 @@ final class NotchViewModel: ObservableObject {
             guard let self else { return }
             if hovering {
                 if !self.transientIsInteractive { self.expand() }
-            } else if self.menuOpen || NSEvent.pressedMouseButtons & 1 != 0 || self.dropPreview {
+            } else if self.menuOpen || NSEvent.pressedMouseButtons & 1 != 0 || self.dropPreview
+                        || (self.composerActive && self.panelIsKey) {
                 self.scheduleHover(false) // a menu is open or a drag is in progress: check again shortly
             } else {
                 self.collapse()
@@ -411,6 +448,12 @@ final class NotchViewModel: ObservableObject {
             self.toggles.refreshKeepAwake()
             self.tabDidChange()
         }
+    }
+
+    /// The island lost keyboard focus (the user clicked another app): close it if the pointer isn't over it.
+    func panelResignedKey() {
+        panelIsKey = false
+        if !isHovering { scheduleHover(false) }
     }
 
     func collapse() {
@@ -549,7 +592,7 @@ final class NotchViewModel: ObservableObject {
     }
 
     var availableDropActions: [DropAction] {
-        DropAction.allCases.filter { $0 != .shelf || isTabEnabled(.shelf) }
+        DropAction.allCases.filter { ($0 != .shelf || isTabEnabled(.shelf)) && ($0 != .askClaude || isTabEnabled(.claude)) }
     }
 
     func updateDropHover(_ location: CGPoint) {
@@ -575,6 +618,10 @@ final class NotchViewModel: ObservableObject {
 
     private func run(_ action: DropAction, on urls: [URL]) {
         switch action {
+        case .askClaude:
+            claude.attach(urls)
+            tab = .claude
+            expand()
         case .shelf:
             files.add(urls)
             tab = .shelf
@@ -714,8 +761,14 @@ final class NotchViewModel: ObservableObject {
             if q("install") == "1" { updater.checkAndInstall() } else { updater.check(userInitiated: true); openSettings(page: .about) }
         case "pomodoro":
             timer.startPomodoro()
+        case "ask":
+            // notchy://ask?q=… asks Claude straight away (handy for Shortcuts and Raycast).
+            guard isTabEnabled(.claude) else { return }
+            tab = .claude
+            expand()
+            if let question = q("q"), !question.isEmpty { claude.send(question) } else { claude.focusRequest &+= 1 }
         case "demo":
-            DemoData.showState(q("state") ?? "", on: self)
+            DemoData.showState(q("state") ?? "", on: self, path: q("path"))
         default:
             break
         }

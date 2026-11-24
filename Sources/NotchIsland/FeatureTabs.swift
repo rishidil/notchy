@@ -623,9 +623,14 @@ struct DropActionsView: View {
 
 struct AgentsTab: View {
     @ObservedObject var agents: AgentsService
+    @EnvironmentObject var vm: NotchViewModel
     @State private var draft = ""
     @State private var newIn: AgentsService.Project?
     @FocusState private var focused: Bool
+    /// Answers collected so far for the pending questions (question id → label, labels or typed text).
+    @State private var answers: [String: Any] = [:]
+    @State private var answeringID: String?
+    @State private var multiPick: Set<String> = []
 
     var body: some View {
         if !agents.isInstalled {
@@ -644,7 +649,23 @@ struct AgentsTab: View {
                 Rectangle().fill(.white.opacity(0.08)).frame(width: 1)
                 detail.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .onChange(of: focused) { vm.composerActive = $0 }
+            .onChange(of: agents.lastError) { if $0 != nil { answers = [:]; answeringID = nil; multiPick = [] } }
+            .onDisappear { vm.composerActive = false }
         }
+    }
+
+    /// The selected thread's first pending approval or question set.
+    private var request: AgentsService.PendingRequest? {
+        guard newIn == nil, let id = agents.selectedID else { return nil }
+        return agents.pending.first { $0.threadID == id }
+    }
+
+    /// The question being asked right now (questions are answered one at a time).
+    private var currentQuestion: AgentsService.PendingRequest.Question? {
+        guard let r = request, case .questions(let qs) = r.kind else { return nil }
+        if answeringID != r.id { return qs.first }
+        return qs.first { answers[$0.id] == nil }
     }
 
     // MARK: List
@@ -710,7 +731,7 @@ struct AgentsTab: View {
     }
 
     private func statusText(_ t: AgentsService.AgentThread) -> String {
-        if t.pendingRequests > 0 { return "Waiting for your approval" }
+        if t.pendingRequests > 0 { return t.isWaitingOnQuestion ? "Has a question for you" : "Waiting for your approval" }
         if t.isRunning { return "Working" }
         if t.needsAttention { return "Needs you" }
         let when = t.updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated))
@@ -761,7 +782,7 @@ struct AgentsTab: View {
             if agents.messages.isEmpty {
                 Text(t.isRunning ? "Working…" : "No messages yet.").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
             }
-            ForEach(agents.messages.suffix(2)) { m in
+            ForEach(agents.messages.suffix(request == nil ? 2 : 1)) { m in
                 let isLast = m.id == agents.messages.last?.id
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: m.isUser ? "person.fill" : "sparkles")
@@ -770,14 +791,16 @@ struct AgentsTab: View {
                     Text(m.text)
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(m.isUser ? 0.6 : 0.9))
-                        .lineLimit(isLast ? 3 : 1)
-                        .truncationMode(isLast ? .head : .tail)
+                        .lineLimit(request != nil ? 1 : (isLast ? 3 : 1))
+                        .truncationMode(isLast && request == nil ? .head : .tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            if t.pendingRequests > 0 || agents.pendingRequests > 0 {
+            if let r = request {
+                requestCard(r, thread: t)
+            } else if t.pendingRequests > 0 || agents.pendingRequests > 0 {
                 HStack(spacing: 8) {
-                    Label("Waiting for your approval", systemImage: "hand.raised.fill")
+                    Label(t.isWaitingOnQuestion ? "Waiting for your answer" : "Waiting for your approval", systemImage: "hand.raised.fill")
                         .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.orange)
                     PillButton(title: "Review in T3", tint: .orange.opacity(0.9), foreground: .black) { agents.openInT3(t) }
                 }
@@ -791,9 +814,7 @@ struct AgentsTab: View {
 
     private var composer: some View {
         HStack(spacing: 8) {
-            TextField(newIn != nil ? "What should the agent do?" :
-                        (agents.selected?.isRunning == true ? "Queue a follow-up (sent when it's done)…" : "Message this agent…"),
-                      text: $draft)
+            TextField(placeholder, text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .focused($focused)
@@ -814,9 +835,21 @@ struct AgentsTab: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(focused ? 0.12 : 0.07)))
     }
 
+    private var placeholder: String {
+        if newIn != nil { return "What should the agent do?" }
+        if let q = currentQuestion, q.allowCustom { return q.options.isEmpty ? "Type your answer…" : "Or type your own answer…" }
+        if request?.isApproval == true { return "Or tell the agent what to do instead…" }
+        return agents.selected?.isRunning == true ? "Queue a follow-up (sent when it's done)…" : "Message this agent…"
+    }
+
     private func submit() {
         let text = draft
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        if let r = request, let q = currentQuestion, q.allowCustom {
+            answer(q, with: text.trimmingCharacters(in: .whitespacesAndNewlines), in: r)
+            draft = ""
+            return
+        }
         if let p = newIn {
             agents.startThread(text, in: p)
             newIn = nil
@@ -824,5 +857,102 @@ struct AgentsTab: View {
             agents.send(text, to: id)
         }
         draft = ""
+    }
+
+    // MARK: Approvals & questions
+
+    // Not optimized: Swift 6.3's release-mode inliner spins for 20+ minutes on this view builder. It's UI code, so
+    // skipping optimization costs nothing noticeable.
+    @_optimize(none) @ViewBuilder private func requestCard(_ r: AgentsService.PendingRequest, thread t: AgentsService.AgentThread) -> some View {
+        let busy = agents.responding == r.id
+        VStack(alignment: .leading, spacing: 5) {
+            switch r.kind {
+            case .approval(let kind, let prompt, let reason, let options):
+                Label(Self.approvalTitle(kind), systemImage: "hand.raised.fill")
+                    .font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.orange)
+                if let main = prompt ?? reason {
+                    Text(main)
+                        .font(.system(size: 10.5, design: prompt != nil && kind == "command" ? .monospaced : .default))
+                        .foregroundStyle(.white.opacity(0.85)).lineLimit(2).truncationMode(.middle)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.06)))
+                        .help(main)
+                }
+                HStack(spacing: 6) {
+                    ForEach(options, id: \.self) { o in
+                        PillButton(title: o.label, tint: Self.isAccept(o.decision) && o.decision == options.first?.decision
+                                       ? .orange.opacity(0.9) : .white.opacity(0.14),
+                                   foreground: Self.isAccept(o.decision) && o.decision == options.first?.decision ? .black : .white) {
+                            agents.respond(to: r, decision: o.decision)
+                        }
+                        .help(o.warning ?? o.label)
+                        .disabled(busy)
+                    }
+                    if busy { ProgressView().controlSize(.mini) }
+                    Spacer(minLength: 0)
+                    Button("Review in T3") { agents.openInT3(t) }
+                        .buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                }
+            case .questions(let qs):
+                if let q = currentQuestion {
+                    HStack(spacing: 5) {
+                        Text(q.header.uppercased()).font(.system(size: 9, weight: .bold)).foregroundStyle(.orange)
+                        if qs.count > 1, let i = qs.firstIndex(of: q) {
+                            Text("\(i + 1) of \(qs.count)").font(.system(size: 9)).foregroundStyle(.white.opacity(0.4))
+                        }
+                        if busy { ProgressView().controlSize(.mini) }
+                    }
+                    Text(q.question).font(.system(size: 11.5, weight: .semibold)).lineLimit(2).help(q.question)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 5) {
+                            ForEach(q.options, id: \.self) { o in
+                                let picked = multiPick.contains(o.label)
+                                PillButton(title: o.label, symbol: q.multiSelect ? (picked ? "checkmark.square.fill" : "square") : nil,
+                                           tint: picked ? .orange.opacity(0.9) : .white.opacity(0.14), foreground: picked ? .black : .white) {
+                                    if q.multiSelect {
+                                        if picked { multiPick.remove(o.label) } else { multiPick.insert(o.label) }
+                                    } else {
+                                        answer(q, with: o.value ?? o.label, in: r)
+                                    }
+                                }
+                                .help(o.description)
+                                .disabled(busy)
+                            }
+                            if q.multiSelect {
+                                PillButton(title: "Done", symbol: "arrow.right", tint: multiPick.isEmpty ? .white.opacity(0.08) : .orange.opacity(0.9),
+                                           foreground: multiPick.isEmpty ? .white.opacity(0.4) : .black) {
+                                    answer(q, with: q.options.map(\.label).filter { multiPick.contains($0) }, in: r)
+                                }
+                                .disabled(multiPick.isEmpty || busy)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Records an answer; once every question has one, sends them all to T3 Code.
+    private func answer(_ q: AgentsService.PendingRequest.Question, with value: Any, in r: AgentsService.PendingRequest) {
+        guard case .questions(let qs) = r.kind else { return }
+        if answeringID != r.id { answers = [:]; answeringID = r.id }
+        answers[q.id] = value
+        multiPick = []
+        if qs.allSatisfy({ answers[$0.id] != nil }) {
+            agents.respond(to: r, answers: answers)
+        }
+    }
+
+    private static func isAccept(_ decision: String) -> Bool { decision.hasPrefix("accept") }
+
+    private static func approvalTitle(_ kind: String) -> String {
+        switch kind {
+        case "command": "Run this command?"
+        case "file-change": "Allow these file changes?"
+        case "file-read": "Allow reading these files?"
+        case "mcp-elicitation": "A tool needs your input"
+        default: "Allow this action?"
+        }
     }
 }
